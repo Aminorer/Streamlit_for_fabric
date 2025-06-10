@@ -5,6 +5,11 @@ import plotly.graph_objects as go
 from db_utils import load_hist_data
 
 
+@st.cache_data
+def load_hist_cached():
+    return load_hist_data()
+
+
 def filter_data(df, brands, seasons, sizes):
     if brands:
         df = df[df["tyre_brand"].isin(brands)]
@@ -23,7 +28,14 @@ def plot_stock_by_brand(df):
     for brand in daily_brand["tyre_brand"].unique():
         data = daily_brand[daily_brand["tyre_brand"] == brand]
         fig.add_trace(
-            go.Scatter(x=data["date_key"], y=data["Sum_stock_quantity"], mode="lines", stackgroup="one", name=brand)
+            go.Scatter(
+                x=data["date_key"],
+                y=data["Sum_stock_quantity"],
+                mode="lines",
+                stackgroup="one",
+                name=brand,
+                line=dict(color="#001944"),
+            )
         )
     fig.update_layout(title="Stock par marque", xaxis_title="Date", yaxis_title="Stock", height=400)
     return fig
@@ -44,6 +56,7 @@ def plot_stock_sum(df):
         y=daily_stock["Sum_stock_quantity"],
         mode="lines+markers",
         name="Stock total",
+        line=dict(color="#001944"),
     ))
     fig.update_layout(title="Évolution du stock total", xaxis_title="Date", yaxis_title="Stock", height=400)
     return fig
@@ -56,6 +69,7 @@ def plot_price_avg(df):
         y=daily_price["Avg_supplier_price_eur"],
         mode="lines+markers",
         name="Prix moyen fournisseur",
+        line=dict(color="#001944"),
     ))
     fig.update_layout(title="Évolution du prix moyen fournisseur", xaxis_title="Date", yaxis_title="Prix (€)", height=400)
     return fig
@@ -65,7 +79,16 @@ def main():
     st.image("logo.png", width=150)
     st.title("Historique des stocks")
 
-    df = load_hist_data()
+    st.markdown(
+        """
+        <style>
+        div[data-testid="stSidebar"] * {color: black;}
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    df = load_hist_cached()
 
     if df.empty:
         st.error("Aucune donnée disponible.")
@@ -75,18 +98,21 @@ def main():
     seasons = st.sidebar.multiselect("Saisons", sorted(df["tyre_season_french"].unique()))
     sizes = st.sidebar.multiselect("Tailles", sorted(df["tyre_fullsize"].unique()))
 
-    df = filter_data(df, brands, seasons, sizes)
+    if st.sidebar.button("Appliquer"):
+        df = filter_data(df, brands, seasons, sizes)
 
-    display_summary(df)
+        display_summary(df)
 
-    fig_stock = plot_stock_sum(df)
-    st.plotly_chart(fig_stock, use_container_width=True)
+        fig_stock = plot_stock_sum(df)
+        st.plotly_chart(fig_stock, use_container_width=True)
 
-    fig_price = plot_price_avg(df)
-    st.plotly_chart(fig_price, use_container_width=True)
+        fig_price = plot_price_avg(df)
+        st.plotly_chart(fig_price, use_container_width=True)
 
-    fig_brand = plot_stock_by_brand(df)
-    st.plotly_chart(fig_brand, use_container_width=True)
+        fig_brand = plot_stock_by_brand(df)
+        st.plotly_chart(fig_brand, use_container_width=True)
+    else:
+        st.info("Sélectionnez vos filtres puis cliquez sur Appliquer.")
 
 if __name__ == "__main__":
     main()
