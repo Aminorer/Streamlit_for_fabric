@@ -1,37 +1,40 @@
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
-from sqlalchemy import create_engine
-from dotenv import load_dotenv
-import os
 
-load_dotenv("secret.env")
+from db_utils import load_hist_data
 
-def get_engine():
-    user = os.getenv("SQL_USER")
-    password = os.getenv("SQL_PASSWORD")
-    server = os.getenv("SQL_SERVER")
-    database = os.getenv("SQL_DATABASE")
-    driver = os.getenv("SQL_DRIVER")
 
-    if driver is None:
-        raise ValueError("La variable d'environnement SQL_DRIVER est manquante.")
-    driver = driver.replace(" ", "+")
-    
-    connection_string = (
-        f"mssql+pyodbc://{user}:{password}@{server}:1433/{database}"
-        f"?driver={driver}"
-        "&authentication=ActiveDirectoryPassword"
-        "&encrypt=yes"
-        "&TrustServerCertificate=no"
-    )
-    return create_engine(connection_string)
-
-def load_hist_data():
-    engine = get_engine()
-    df = pd.read_sql("SELECT date_key, Sum_stock_quantity, Avg_supplier_price_eur FROM dbo.fullsize_stock_hist", engine)
-    df['date_key'] = pd.to_datetime(df['date_key'])
+def filter_data(df, brands, seasons, sizes):
+    if brands:
+        df = df[df["tyre_brand"].isin(brands)]
+    if seasons:
+        df = df[df["tyre_season_french"].isin(seasons)]
+    if sizes:
+        df = df[df["tyre_fullsize"].isin(sizes)]
     return df
+
+
+def plot_stock_by_brand(df):
+    daily_brand = (
+        df.groupby(["date_key", "tyre_brand"])["Sum_stock_quantity"].sum().reset_index()
+    )
+    fig = go.Figure()
+    for brand in daily_brand["tyre_brand"].unique():
+        data = daily_brand[daily_brand["tyre_brand"] == brand]
+        fig.add_trace(
+            go.Scatter(x=data["date_key"], y=data["Sum_stock_quantity"], mode="lines", stackgroup="one", name=brand)
+        )
+    fig.update_layout(title="Stock par marque", xaxis_title="Date", yaxis_title="Stock", height=400)
+    return fig
+
+
+def display_summary(df):
+    total_stock = int(df["Sum_stock_quantity"].sum())
+    avg_price = float(df["Avg_supplier_price_eur"].mean())
+    col1, col2 = st.columns(2)
+    col1.metric("Stock total", f"{total_stock:,}")
+    col2.metric("Prix moyen", f"{avg_price:.2f} €")
 
 def plot_stock_sum(df):
     daily_stock = df.groupby("date_key")["Sum_stock_quantity"].sum().reset_index()
@@ -59,6 +62,7 @@ def plot_price_avg(df):
 
 def main():
     st.set_page_config(page_title="Historique des stocks", layout="wide")
+    st.image("logo.png", width=150)
     st.title("Historique des stocks")
 
     df = load_hist_data()
@@ -67,13 +71,22 @@ def main():
         st.error("Aucune donnée disponible.")
         return
 
-    
+    brands = st.sidebar.multiselect("Marques", sorted(df["tyre_brand"].unique()))
+    seasons = st.sidebar.multiselect("Saisons", sorted(df["tyre_season_french"].unique()))
+    sizes = st.sidebar.multiselect("Tailles", sorted(df["tyre_fullsize"].unique()))
+
+    df = filter_data(df, brands, seasons, sizes)
+
+    display_summary(df)
+
     fig_stock = plot_stock_sum(df)
     st.plotly_chart(fig_stock, use_container_width=True)
 
-    
     fig_price = plot_price_avg(df)
     st.plotly_chart(fig_price, use_container_width=True)
+
+    fig_brand = plot_stock_by_brand(df)
+    st.plotly_chart(fig_brand, use_container_width=True)
 
 if __name__ == "__main__":
     main()
