@@ -2,6 +2,15 @@ import pandas as pd
 import streamlit as st
 import plotly.graph_objects as go
 
+ASSOCIATED_COLORS = [
+    "#d0eaf2",
+    "#b1d0db",
+    "#86ccda",
+    "#addcc7",
+    "#c4deaa",
+    "#5aebc4",
+]
+
 from db_utils import load_hist_data, get_engine
 
 
@@ -58,7 +67,7 @@ def prepare_comparison(df_hist, df_pred):
     df_pred = aggregate_predictions(df_pred)
     df_hist = df_hist.groupby("date_key").agg(
         stock_real=("Sum_stock_quantity", "sum"),
-        price_real=("Avg_supplier_price_eur", "mean"),
+        price_real=("Avg_supplier_price_eur", lambda x: x[x > 0].mean()),
     ).reset_index()
     return pd.merge(df_hist, df_pred, on="date_key", how="inner")
 
@@ -71,7 +80,7 @@ def plot_comparison(df, real_col, pred_col, title, ytitle):
             y=df[real_col],
             mode="lines+markers",
             name="Réel",
-            line=dict(color="#001944"),
+            line=dict(color=ASSOCIATED_COLORS[0]),
         )
     )
     fig.add_trace(
@@ -80,7 +89,7 @@ def plot_comparison(df, real_col, pred_col, title, ytitle):
             y=df[pred_col],
             mode="lines+markers",
             name="Prédit",
-            line=dict(color="#001944"),
+            line=dict(color=ASSOCIATED_COLORS[1]),
         )
     )
     fig.update_layout(title=title, xaxis_title="Date", yaxis_title=ytitle, height=400)
@@ -92,10 +101,48 @@ def plot_error(df, real_col, pred_col, title, ytitle):
     df["error"] = df[real_col] - df[pred_col]
     fig = go.Figure()
     fig.add_trace(
-        go.Bar(x=df["date_key"], y=df["error"], name="Erreur", marker_color="#001944")
+        go.Bar(x=df["date_key"], y=df["error"], name="Erreur", marker_color=ASSOCIATED_COLORS[2])
     )
     fig.update_layout(title=title, xaxis_title="Date", yaxis_title=ytitle, height=400)
     return fig
+
+
+def plot_relative_error(df, real_col, pred_col, title):
+    df = df.copy()
+    df["rel_error"] = (df[pred_col] - df[real_col]) / df[real_col] * 100
+    fig = go.Figure()
+    fig.add_trace(
+        go.Bar(x=df["date_key"], y=df["rel_error"], name="Erreur %", marker_color=ASSOCIATED_COLORS[3])
+    )
+    fig.update_layout(title=title, xaxis_title="Date", yaxis_title="Erreur (%)", height=400)
+    return fig
+
+
+def display_summary_pred(df_hist, df_pred):
+    start_pred = df_pred["date_key"].min()
+    first_pred = df_pred[df_pred["date_key"] == start_pred]
+    stock_pred_first = int(first_pred["stock_prediction"].sum())
+    price_pred_first = float(first_pred["price_prediction"].mean())
+
+    hist_before = df_hist[df_hist["date_key"] < start_pred]
+    if not hist_before.empty:
+        prev = hist_before.groupby("date_key").agg(
+            stock_real=("Sum_stock_quantity", "sum"),
+            price_real=("Avg_supplier_price_eur", lambda x: x[x > 0].mean()),
+        ).reset_index().iloc[-1]
+        stock_real_prev = int(prev["stock_real"])
+        price_real_prev = float(prev["price_real"])
+    else:
+        stock_real_prev = 0
+        price_real_prev = 0
+
+    col1, col2 = st.columns(2)
+    col1.metric("Stock prédit premier jour", f"{stock_pred_first:,}")
+    col2.metric("Stock réel veille", f"{stock_real_prev:,}")
+
+    col3, col4 = st.columns(2)
+    col3.metric("Prix prédit premier jour", f"{price_pred_first:.2f} €")
+    col4.metric("Prix réel veille", f"{price_real_prev:.2f} €")
 
 
 def main():
@@ -129,26 +176,43 @@ def main():
         df_pred_f = filter_data(df_pred, brands, seasons, sizes)
         df = prepare_comparison(df_hist, df_pred_f)
 
+        display_summary_pred(df_hist, df_pred_f)
+
         st.subheader("Comparaison stocks")
         fig_stock = plot_comparison(
             df, "stock_real", "stock_pred", "Stocks réels vs prédits", "Stock"
         )
         st.plotly_chart(fig_stock, use_container_width=True)
+        st.subheader("Erreur de prédiction (stock)")
+        fig_err_stock = plot_error(
+            df, "stock_real", "stock_pred", "Erreur sur le stock", "Différence"
+        )
+        st.plotly_chart(fig_err_stock, use_container_width=True)
+
+        fig_rel_stock = plot_relative_error(
+            df, "stock_real", "stock_pred", "Erreur relative stock"
+        )
+        st.plotly_chart(fig_rel_stock, use_container_width=True)
 
         st.subheader("Comparaison prix")
         fig_price = plot_comparison(
             df, "price_real", "price_pred", "Prix réels vs prédits", "Prix (€)"
         )
         st.plotly_chart(fig_price, use_container_width=True)
-
-        st.subheader("Erreur de prédiction (stock)")
-        fig_err = plot_error(
-            df, "stock_real", "stock_pred", "Erreur sur le stock", "Différence"
+        st.subheader("Erreur de prédiction (prix)")
+        fig_err_price = plot_error(
+            df, "price_real", "price_pred", "Erreur sur le prix", "Différence"
         )
-        st.plotly_chart(fig_err, use_container_width=True)
+        st.plotly_chart(fig_err_price, use_container_width=True)
 
+        fig_rel_price = plot_relative_error(
+            df, "price_real", "price_pred", "Erreur relative prix"
+        )
+        st.plotly_chart(fig_rel_price, use_container_width=True)
+
+        df_display = df[["date_key", "stock_real", "stock_pred", "price_real", "price_pred"]]
         st.subheader("Données de comparaison")
-        st.dataframe(df)
+        st.dataframe(df_display)
     else:
         st.info("Sélectionnez vos filtres puis cliquez sur Appliquer.")
 

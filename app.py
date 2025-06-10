@@ -2,6 +2,15 @@ import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 
+ASSOCIATED_COLORS = [
+    "#d0eaf2",
+    "#b1d0db",
+    "#86ccda",
+    "#addcc7",
+    "#c4deaa",
+    "#5aebc4",
+]
+
 from db_utils import load_hist_data
 
 
@@ -25,7 +34,8 @@ def plot_stock_by_brand(df):
         df.groupby(["date_key", "tyre_brand"])["Sum_stock_quantity"].sum().reset_index()
     )
     fig = go.Figure()
-    for brand in daily_brand["tyre_brand"].unique():
+    brands = daily_brand["tyre_brand"].unique()
+    for idx, brand in enumerate(brands):
         data = daily_brand[daily_brand["tyre_brand"] == brand]
         fig.add_trace(
             go.Scatter(
@@ -34,7 +44,7 @@ def plot_stock_by_brand(df):
                 mode="lines",
                 stackgroup="one",
                 name=brand,
-                line=dict(color="#001944"),
+                line=dict(color=ASSOCIATED_COLORS[idx % len(ASSOCIATED_COLORS)]),
             )
         )
     fig.update_layout(title="Stock par marque", xaxis_title="Date", yaxis_title="Stock", height=400)
@@ -42,11 +52,21 @@ def plot_stock_by_brand(df):
 
 
 def display_summary(df):
-    total_stock = int(df["Sum_stock_quantity"].sum())
-    avg_price = float(df["Avg_supplier_price_eur"].mean())
+    daily_stock = df.groupby("date_key")["Sum_stock_quantity"].sum().reset_index()
+    last_stock = int(daily_stock.iloc[-1]["Sum_stock_quantity"])
+    avg_stock = int(daily_stock["Sum_stock_quantity"].mean())
+
+    price_filtered = df[df["Avg_supplier_price_eur"] > 0]["Avg_supplier_price_eur"]
+    price_max = float(price_filtered.max()) if not price_filtered.empty else 0
+    price_min = float(price_filtered.min()) if not price_filtered.empty else 0
+
     col1, col2 = st.columns(2)
-    col1.metric("Stock total", f"{total_stock:,}")
-    col2.metric("Prix moyen", f"{avg_price:.2f} €")
+    col1.metric("Dernier stock enregistré", f"{last_stock:,}")
+    col2.metric("Stock moyen quotidien", f"{avg_stock:,}")
+
+    col3, col4 = st.columns(2)
+    col3.metric("Prix maximum", f"{price_max:.2f} €")
+    col4.metric("Prix minimum", f"{price_min:.2f} €")
 
 def plot_stock_sum(df):
     daily_stock = df.groupby("date_key")["Sum_stock_quantity"].sum().reset_index()
@@ -56,20 +76,21 @@ def plot_stock_sum(df):
         y=daily_stock["Sum_stock_quantity"],
         mode="lines+markers",
         name="Stock total",
-        line=dict(color="#001944"),
+        line=dict(color=ASSOCIATED_COLORS[0]),
     ))
     fig.update_layout(title="Évolution du stock total", xaxis_title="Date", yaxis_title="Stock", height=400)
     return fig
 
 def plot_price_avg(df):
-    daily_price = df.groupby("date_key")["Avg_supplier_price_eur"].mean().reset_index()
+    price_filtered = df[df["Avg_supplier_price_eur"] > 0]
+    daily_price = price_filtered.groupby("date_key")["Avg_supplier_price_eur"].mean().reset_index()
     fig = go.Figure()
     fig.add_trace(go.Scatter(
         x=daily_price["date_key"],
         y=daily_price["Avg_supplier_price_eur"],
         mode="lines+markers",
         name="Prix moyen fournisseur",
-        line=dict(color="#001944"),
+        line=dict(color=ASSOCIATED_COLORS[1]),
     ))
     fig.update_layout(title="Évolution du prix moyen fournisseur", xaxis_title="Date", yaxis_title="Prix (€)", height=400)
     return fig
