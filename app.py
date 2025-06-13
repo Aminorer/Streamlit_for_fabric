@@ -3,12 +3,12 @@ import pandas as pd
 import plotly.graph_objects as go
 
 ASSOCIATED_COLORS = [
-    "#d0eaf2",
-    "#b1d0db",
-    "#86ccda",
-    "#addcc7",
-    "#c4deaa",
-    "#5aebc4",
+    "#7fbfdc",
+    "#6ba6b6",
+    "#4cadb4",
+    "#78b495",
+    "#82b86a",
+    "#45b49d",
 ]
 
 from db_utils import load_hist_data
@@ -48,6 +48,33 @@ def plot_stock_by_brand(df):
             )
         )
     fig.update_layout(title="Stock par marque", xaxis_title="Date", yaxis_title="Stock", height=400)
+    return fig
+
+
+def plot_stock_by_season(df):
+    daily_season = (
+        df.groupby(["date_key", "tyre_season_french"])["Sum_stock_quantity"].sum().reset_index()
+    )
+    fig = go.Figure()
+    seasons = daily_season["tyre_season_french"].unique()
+    for idx, season in enumerate(seasons):
+        data = daily_season[daily_season["tyre_season_french"] == season]
+        fig.add_trace(
+            go.Scatter(
+                x=data["date_key"],
+                y=data["Sum_stock_quantity"],
+                mode="lines",
+                stackgroup="one",
+                name=season,
+                line=dict(color=ASSOCIATED_COLORS[idx % len(ASSOCIATED_COLORS)])
+            )
+        )
+    fig.update_layout(
+        title="Stock par saison",
+        xaxis_title="Date",
+        yaxis_title="Stock",
+        height=400,
+    )
     return fig
 
 
@@ -132,6 +159,9 @@ def main():
 
         fig_brand = plot_stock_by_brand(df)
         st.plotly_chart(fig_brand, use_container_width=True)
+
+        fig_season = plot_stock_by_season(df)
+        st.plotly_chart(fig_season, use_container_width=True)
     else:
         st.info("Sélectionnez vos filtres puis cliquez sur Appliquer.")
 
