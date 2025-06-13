@@ -94,14 +94,18 @@ def generate_codex_predictions(
         ]
     )
 
-    stock_model = Pipeline([
-        ("preproc", preproc),
-        ("model", RandomForestRegressor(n_estimators=200, random_state=42)),
-    ])
-    price_model = Pipeline([
-        ("preproc", preproc),
-        ("model", RandomForestRegressor(n_estimators=200, random_state=42)),
-    ])
+    stock_model = Pipeline(
+        [
+            ("preproc", preproc),
+            ("model", RandomForestRegressor(n_estimators=200, random_state=42)),
+        ]
+    )
+    price_model = Pipeline(
+        [
+            ("preproc", preproc),
+            ("model", RandomForestRegressor(n_estimators=200, random_state=42)),
+        ]
+    )
 
     X = df[cat_cols + num_cols]
     stock_model.fit(X, df["Sum_stock_quantity"])
@@ -121,40 +125,9 @@ def generate_codex_predictions(
             date_key=d,
             stock_prediction=stock_pred,
             price_prediction=price_pred,
-        )[
-            ["date_key"] + cat_cols + ["stock_prediction", "price_prediction"]
-        ]
+        )[["date_key"] + cat_cols + ["stock_prediction", "price_prediction"]]
         all_preds.append(out)
         if progress_callback is not None:
             progress_callback(idx / len(future_dates))
 
     return pd.concat(all_preds, ignore_index=True)
-
-
-def ensure_codex_prediction_table(show_progress: bool = False) -> None:
-    """Create the codex prediction table if it does not exist.
-
-    Parameters
-    ----------
-    show_progress : bool, optional
-        Display a progress bar during generation.
-    """
-    table_name = "fullsize_stock_pred_codex"
-    if prediction_table_exists(table_name):
-        return
-
-    hist = load_hist_data()
-    progress = None
-    if show_progress:
-        import streamlit as st
-
-        progress = st.progress(0.0)
-
-    preds = generate_codex_predictions(
-        hist,
-        progress_callback=(lambda v: progress.progress(v) if progress else None),
-    )
-    save_dataframe_to_table(preds, table_name)
-    if progress is not None:
-        progress.empty()
-        st.success("Table de prédictions générée")

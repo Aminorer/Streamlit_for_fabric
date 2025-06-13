@@ -5,7 +5,6 @@ import plotly.graph_objects as go
 from db_utils import (
     load_hist_data,
     get_engine,
-    ensure_codex_prediction_table,
 )
 
 ASSOCIATED_COLORS = [
@@ -17,9 +16,11 @@ ASSOCIATED_COLORS = [
     "#45b49d",
 ]
 
+
 @st.cache_data
 def load_hist_cached():
     return load_hist_data()
+
 
 @st.cache_data
 def load_pred_cached(table_name):
@@ -48,18 +49,26 @@ def load_prediction_data(table_name):
 
 
 def aggregate_predictions(df):
-    return df.groupby("date_key").agg(
-        stock_pred=("stock_prediction", "sum"),
-        price_pred=("price_prediction", "mean"),
-    ).reset_index()
+    return (
+        df.groupby("date_key")
+        .agg(
+            stock_pred=("stock_prediction", "sum"),
+            price_pred=("price_prediction", "mean"),
+        )
+        .reset_index()
+    )
 
 
 def prepare_comparison(df_hist, df_pred):
     df_pred = aggregate_predictions(df_pred)
-    df_hist = df_hist.groupby("date_key").agg(
-        stock_real=("Sum_stock_quantity", "sum"),
-        price_real=("Avg_supplier_price_eur", lambda x: x[x > 0].mean()),
-    ).reset_index()
+    df_hist = (
+        df_hist.groupby("date_key")
+        .agg(
+            stock_real=("Sum_stock_quantity", "sum"),
+            price_real=("Avg_supplier_price_eur", lambda x: x[x > 0].mean()),
+        )
+        .reset_index()
+    )
     return pd.merge(df_hist, df_pred, on="date_key", how="inner")
 
 
@@ -82,8 +91,12 @@ def compute_daily_summary(df_hist, tables):
     all_df = pd.concat(frames)
     idx_best = all_df.groupby("date_key")["abs_err_stock"].idxmin()
     idx_worst = all_df.groupby("date_key")["abs_err_stock"].idxmax()
-    best_df = all_df.loc[idx_best].rename(columns={"table": "best_model", "abs_err_stock": "best_mae"})
-    worst_df = all_df.loc[idx_worst].rename(columns={"table": "worst_model", "abs_err_stock": "worst_mae"})
+    best_df = all_df.loc[idx_best].rename(
+        columns={"table": "best_model", "abs_err_stock": "best_mae"}
+    )
+    worst_df = all_df.loc[idx_worst].rename(
+        columns={"table": "worst_model", "abs_err_stock": "worst_mae"}
+    )
     return pd.merge(best_df, worst_df, on="date_key")
 
 
@@ -96,7 +109,12 @@ def plot_overall_mae(summary):
             marker_color=ASSOCIATED_COLORS[0],
         )
     )
-    fig.update_layout(title="MAE global par modèle", xaxis_title="Modèle", yaxis_title="MAE", height=400)
+    fig.update_layout(
+        title="MAE global par modèle",
+        xaxis_title="Modèle",
+        yaxis_title="MAE",
+        height=400,
+    )
     return fig
 
 
@@ -132,7 +150,6 @@ def plot_daily_best_worst(df):
 
 def main():
     st.set_page_config(page_title="Comparatif", layout="wide")
-    ensure_codex_prediction_table(show_progress=True)
     st.image("logo.png", width=150)
     st.title("Comparaison des modèles")
 
