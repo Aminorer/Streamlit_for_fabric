@@ -2,7 +2,11 @@ import pandas as pd
 import streamlit as st
 import plotly.graph_objects as go
 
-from db_utils import load_hist_data, get_engine
+from db_utils import (
+    load_hist_data,
+    get_engine,
+    ensure_codex_prediction_table,
+)
 
 ASSOCIATED_COLORS = [
     "#7fbfdc",
@@ -128,6 +132,7 @@ def plot_daily_best_worst(df):
 
 def main():
     st.set_page_config(page_title="Comparatif", layout="wide")
+    ensure_codex_prediction_table()
     st.image("logo.png", width=150)
     st.title("Comparaison des modèles")
 

@@ -11,7 +11,7 @@ ASSOCIATED_COLORS = [
     "#45b49d",
 ]
 
-from db_utils import load_hist_data
+from db_utils import load_hist_data, ensure_codex_prediction_table
 
 
 @st.cache_data
@@ -124,6 +124,7 @@ def plot_price_avg(df):
 
 def main():
     st.set_page_config(page_title="Historique des stocks", layout="wide")
+    ensure_codex_prediction_table()
     st.image("logo.png", width=150)
     st.title("Historique des stocks")
 
