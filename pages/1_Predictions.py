@@ -11,7 +11,11 @@ ASSOCIATED_COLORS = [
     "#45b49d",
 ]
 
-from db_utils import load_hist_data, get_engine
+from db_utils import (
+    load_hist_data,
+    get_engine,
+    ensure_codex_prediction_table,
+)
 
 
 @st.cache_data
@@ -163,6 +167,7 @@ def display_summary_pred(df_hist, df_pred):
 
 def main():
     st.set_page_config(page_title="Prédictions", layout="wide")
+    ensure_codex_prediction_table()
     st.image("logo.png", width=150)
     st.title("Analyse des prédictions")
 
