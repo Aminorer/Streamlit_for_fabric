@@ -8,6 +8,7 @@ from sklearn.preprocessing import OneHotEncoder
 from sklearn.pipeline import Pipeline
 from sklearn.ensemble import RandomForestRegressor
 from dotenv import load_dotenv
+from typing import Callable, Optional
 
 load_dotenv("secret.env")
 
@@ -64,8 +65,22 @@ def save_dataframe_to_table(df: pd.DataFrame, table_name: str) -> None:
     df.to_sql(table_name, con=engine, schema="dbo", index=False, if_exists="replace")
 
 
-def generate_codex_predictions(df_hist: pd.DataFrame, horizon: int = 30) -> pd.DataFrame:
-    """Generate stock and price predictions using a RandomForest model."""
+def generate_codex_predictions(
+    df_hist: pd.DataFrame,
+    horizon: int = 30,
+    progress_callback: Optional[Callable[[float], None]] = None,
+) -> pd.DataFrame:
+    """Generate stock and price predictions using a RandomForest model.
+
+    Parameters
+    ----------
+    df_hist : pd.DataFrame
+        Historical data used for training.
+    horizon : int, optional
+        Number of days to predict, by default 30.
+    progress_callback : Callable[[float], None], optional
+        Function called with progress in [0, 1] after each iteration.
+    """
     df = df_hist.dropna(subset=["Sum_stock_quantity", "Avg_supplier_price_eur"]).copy()
     df["date_ord"] = df["date_key"].map(pd.Timestamp.toordinal)
 
@@ -97,7 +112,7 @@ def generate_codex_predictions(df_hist: pd.DataFrame, horizon: int = 30) -> pd.D
 
     combos = df[cat_cols].drop_duplicates()
     all_preds = []
-    for d in future_dates:
+    for idx, d in enumerate(future_dates, start=1):
         features = combos.copy()
         features["date_ord"] = d.toordinal()
         stock_pred = stock_model.predict(features[cat_cols + num_cols])
@@ -110,16 +125,36 @@ def generate_codex_predictions(df_hist: pd.DataFrame, horizon: int = 30) -> pd.D
             ["date_key"] + cat_cols + ["stock_prediction", "price_prediction"]
         ]
         all_preds.append(out)
+        if progress_callback is not None:
+            progress_callback(idx / len(future_dates))
 
     return pd.concat(all_preds, ignore_index=True)
 
 
-def ensure_codex_prediction_table() -> None:
-    """Create the codex prediction table if it does not exist."""
+def ensure_codex_prediction_table(show_progress: bool = False) -> None:
+    """Create the codex prediction table if it does not exist.
+
+    Parameters
+    ----------
+    show_progress : bool, optional
+        Display a progress bar during generation.
+    """
     table_name = "fullsize_stock_pred_codex"
     if prediction_table_exists(table_name):
         return
 
     hist = load_hist_data()
-    preds = generate_codex_predictions(hist)
+    progress = None
+    if show_progress:
+        import streamlit as st
+
+        progress = st.progress(0.0)
+
+    preds = generate_codex_predictions(
+        hist,
+        progress_callback=(lambda v: progress.progress(v) if progress else None),
+    )
     save_dataframe_to_table(preds, table_name)
+    if progress is not None:
+        progress.empty()
+        st.success("Table de prédictions générée")

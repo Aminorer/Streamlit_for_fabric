@@ -132,7 +132,7 @@ def plot_daily_best_worst(df):
 
 def main():
     st.set_page_config(page_title="Comparatif", layout="wide")
-    ensure_codex_prediction_table()
+    ensure_codex_prediction_table(show_progress=True)
     st.image("logo.png", width=150)
     st.title("Comparaison des modèles")
 

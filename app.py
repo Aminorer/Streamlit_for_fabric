@@ -124,7 +124,7 @@ def plot_price_avg(df):
 
 def main():
     st.set_page_config(page_title="Historique des stocks", layout="wide")
-    ensure_codex_prediction_table()
+    ensure_codex_prediction_table(show_progress=True)
     st.image("logo.png", width=150)
     st.title("Historique des stocks")
 
