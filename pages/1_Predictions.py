@@ -3,12 +3,12 @@ import streamlit as st
 import plotly.graph_objects as go
 
 ASSOCIATED_COLORS = [
-    "#d0eaf2",
-    "#b1d0db",
-    "#86ccda",
-    "#addcc7",
-    "#c4deaa",
-    "#5aebc4",
+    "#7fbfdc",
+    "#6ba6b6",
+    "#4cadb4",
+    "#78b495",
+    "#82b86a",
+    "#45b49d",
 ]
 
 from db_utils import load_hist_data, get_engine
@@ -118,6 +118,22 @@ def plot_relative_error(df, real_col, pred_col, title):
     return fig
 
 
+def plot_abs_error(df, real_col, pred_col, title, ytitle):
+    df = df.copy()
+    df["abs_error"] = (df[real_col] - df[pred_col]).abs()
+    fig = go.Figure()
+    fig.add_trace(
+        go.Bar(
+            x=df["date_key"],
+            y=df["abs_error"],
+            name="Erreur absolue",
+            marker_color=ASSOCIATED_COLORS[4],
+        )
+    )
+    fig.update_layout(title=title, xaxis_title="Date", yaxis_title=ytitle, height=400)
+    return fig
+
+
 def display_summary_pred(df_hist, df_pred):
     start_pred = df_pred["date_key"].min()
     first_pred = df_pred[df_pred["date_key"] == start_pred]
@@ -168,15 +184,16 @@ def main():
     table_name = st.selectbox("Table de prédictions", tables)
     df_pred = load_pred_cached(table_name)
 
-    brands = st.sidebar.multiselect("Marques", sorted(df_pred["tyre_brand"].unique()))
-    seasons = st.sidebar.multiselect("Saisons", sorted(df_pred["tyre_season_french"].unique()))
-    sizes = st.sidebar.multiselect("Tailles", sorted(df_pred["tyre_fullsize"].unique()))
+    brands = st.sidebar.multiselect("Marques", sorted(df_hist["tyre_brand"].unique()))
+    seasons = st.sidebar.multiselect("Saisons", sorted(df_hist["tyre_season_french"].unique()))
+    sizes = st.sidebar.multiselect("Tailles", sorted(df_hist["tyre_fullsize"].unique()))
 
     if st.sidebar.button("Appliquer"):
         df_pred_f = filter_data(df_pred, brands, seasons, sizes)
-        df = prepare_comparison(df_hist, df_pred_f)
+        df_hist_f = filter_data(df_hist, brands, seasons, sizes)
+        df = prepare_comparison(df_hist_f, df_pred_f)
 
-        display_summary_pred(df_hist, df_pred_f)
+        display_summary_pred(df_hist_f, df_pred_f)
 
         st.subheader("Comparaison stocks")
         fig_stock = plot_comparison(
@@ -194,6 +211,15 @@ def main():
         )
         st.plotly_chart(fig_rel_stock, use_container_width=True)
 
+        fig_abs_stock = plot_abs_error(
+            df,
+            "stock_real",
+            "stock_pred",
+            "Erreur absolue stock",
+            "Différence absolue",
+        )
+        st.plotly_chart(fig_abs_stock, use_container_width=True)
+
         st.subheader("Comparaison prix")
         fig_price = plot_comparison(
             df, "price_real", "price_pred", "Prix réels vs prédits", "Prix (€)"
@@ -209,6 +235,15 @@ def main():
             df, "price_real", "price_pred", "Erreur relative prix"
         )
         st.plotly_chart(fig_rel_price, use_container_width=True)
+
+        fig_abs_price = plot_abs_error(
+            df,
+            "price_real",
+            "price_pred",
+            "Erreur absolue prix",
+            "Différence absolue",
+        )
+        st.plotly_chart(fig_abs_price, use_container_width=True)
 
         df_display = df[["date_key", "stock_real", "stock_pred", "price_real", "price_pred"]]
         st.subheader("Données de comparaison")
