@@ -8,6 +8,13 @@ from db_utils import (
     get_engine,
 )
 
+
+def format_model_name(table_name: str) -> str:
+    """Return a display friendly model name."""
+    name = table_name.replace("fullsize_stock_pred_", "")
+    name = name.replace("_june", "").replace("_mai", "")
+    return name.upper()
+
 ASSOCIATED_COLORS = [
     "#7fbfdc",
     "#6ba6b6",
@@ -99,14 +106,32 @@ def compute_metrics(df_hist, df_pred):
 
 
 def compute_daily_summary(df_hist, pred_dict):
+    """Return daily best and worst models based on MAE."""
     frames = []
     for name, df_pred in pred_dict.items():
-        comp = prepare_comparison(df_hist, df_pred)
-        comp["table"] = name
-        comp["abs_err_stock"] = (comp["stock_real"] - comp["stock_pred"]).abs()
-        frames.append(comp[["date_key", "table", "abs_err_stock"]])
+        merged = pd.merge(
+            df_hist,
+            df_pred,
+            on=[
+                "date_key",
+                "tyre_brand",
+                "tyre_season_french",
+                "tyre_fullsize",
+            ],
+            how="inner",
+        )
+        merged["abs_err_stock"] = (
+            merged["Sum_stock_quantity"] - merged["stock_prediction"]
+        ).abs()
+        daily_mae = (
+            merged.groupby("date_key")["abs_err_stock"].mean().reset_index()
+        )
+        daily_mae["table"] = name
+        frames.append(daily_mae)
+
     if not frames:
         return pd.DataFrame()
+
     all_df = pd.concat(frames)
     idx_best = all_df.groupby("date_key")["abs_err_stock"].idxmin()
     idx_worst = all_df.groupby("date_key")["abs_err_stock"].idxmax()
@@ -116,7 +141,11 @@ def compute_daily_summary(df_hist, pred_dict):
     worst_df = all_df.loc[idx_worst].rename(
         columns={"table": "worst_model", "abs_err_stock": "worst_mae"}
     )
-    return pd.merge(best_df, worst_df, on="date_key")
+    result = pd.merge(best_df, worst_df, on="date_key")
+    result = result.sort_values("date_key").head(30)
+    result["best_model"] = result["best_model"].apply(format_model_name)
+    result["worst_model"] = result["worst_model"].apply(format_model_name)
+    return result
 
 
 def plot_overall_mae(summary):
@@ -217,7 +246,12 @@ def main():
         st.error("Aucune table de prédictions trouvée.")
         return
 
-    selected_tables = st.sidebar.multiselect("Tables à comparer", tables, default=tables)
+    selected_tables = st.sidebar.multiselect(
+        "Tables à comparer",
+        tables,
+        default=tables,
+        format_func=format_model_name,
+    )
     brands = st.sidebar.multiselect("Marques", sorted(df_hist["tyre_brand"].unique()))
     seasons = st.sidebar.multiselect("Saisons", sorted(df_hist["tyre_season_french"].unique()))
     sizes = st.sidebar.multiselect("Tailles", sorted(df_hist["tyre_fullsize"].unique()))
@@ -232,7 +266,7 @@ def main():
         metrics = [compute_metrics(df_hist_f, df) for df in pred_dict.values()]
         summary = pd.DataFrame(
             {
-                "table": list(pred_dict.keys()),
+                "table": [format_model_name(t) for t in pred_dict.keys()],
                 "mae": [m[0] for m in metrics],
                 "rmse": [m[1] for m in metrics],
                 "mape": [m[2] for m in metrics],

@@ -17,6 +17,13 @@ from db_utils import (
 )
 
 
+def format_model_name(table_name: str) -> str:
+    """Return a display friendly model name."""
+    name = table_name.replace("fullsize_stock_pred_", "")
+    name = name.replace("_june", "").replace("_mai", "")
+    return name.upper()
+
+
 @st.cache_data
 def load_hist_cached():
     return load_hist_data()
@@ -136,7 +143,7 @@ def plot_comparison_multi(dfs, real_col, pred_col, title, ytitle):
                 x=df["date_key"],
                 y=df[pred_col],
                 mode="lines+markers",
-                name=f"Prédit {name}",
+                name=f"Prédit {format_model_name(name)}",
                 line=dict(color=ASSOCIATED_COLORS[idx % len(ASSOCIATED_COLORS)]),
             )
         )
@@ -170,7 +177,7 @@ def plot_error_multi(dfs, real_col, pred_col, title, ytitle):
             go.Bar(
                 x=tmp["date_key"],
                 y=tmp["error"],
-                name=name,
+                name=format_model_name(name),
                 marker_color=ASSOCIATED_COLORS[idx % len(ASSOCIATED_COLORS)],
             )
         )
@@ -211,7 +218,7 @@ def plot_relative_error_multi(dfs, real_col, pred_col, title):
             go.Bar(
                 x=tmp["date_key"],
                 y=tmp["rel_error"],
-                name=name,
+                name=format_model_name(name),
                 marker_color=ASSOCIATED_COLORS[idx % len(ASSOCIATED_COLORS)],
             )
         )
@@ -250,7 +257,7 @@ def plot_abs_error_multi(dfs, real_col, pred_col, title, ytitle):
             go.Bar(
                 x=tmp["date_key"],
                 y=tmp["abs_error"],
-                name=name,
+                name=format_model_name(name),
                 marker_color=ASSOCIATED_COLORS[idx % len(ASSOCIATED_COLORS)],
             )
         )
@@ -298,7 +305,7 @@ def display_summary_pred(df_hist, pred_dict):
         price_pred_first = float(first_pred["price_prediction"].mean())
         rows.append(
             {
-                "table": name,
+                "table": format_model_name(name),
                 "stock_pred_first": stock_pred_first,
                 "price_pred_first": price_pred_first,
             }
@@ -327,7 +334,12 @@ def main():
         st.error("Aucune table de prédictions trouvée.")
         return
 
-    selected_tables = st.sidebar.multiselect("Tables de prédictions", tables, default=tables[:1])
+    selected_tables = st.sidebar.multiselect(
+        "Tables de prédictions",
+        tables,
+        default=tables[:1],
+        format_func=format_model_name,
+    )
     pred_dict = {t: load_pred_cached(t) for t in selected_tables}
 
     brands = st.sidebar.multiselect("Marques", sorted(df_hist["tyre_brand"].unique()))
@@ -396,7 +408,7 @@ def main():
         frames = []
         for name, df in comps.items():
             tmp = df[["date_key", "stock_real", "stock_pred", "price_real", "price_pred"]].copy()
-            tmp["table"] = name
+            tmp["table"] = format_model_name(name)
             frames.append(tmp)
         df_display = pd.concat(frames)
         st.subheader("Données de comparaison")
