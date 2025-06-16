@@ -83,6 +83,14 @@ def prepare_comparison(df_hist, df_pred):
     return pd.merge(df_hist, df_pred, on="date_key", how="inner")
 
 
+def prepare_comparison_multi(df_hist, pred_dict):
+    """Return a dictionary of comparison dataframes for each prediction table."""
+    out = {}
+    for name, df_pred in pred_dict.items():
+        out[name] = prepare_comparison(df_hist, df_pred)
+    return out
+
+
 def plot_comparison(df, real_col, pred_col, title, ytitle):
     fig = go.Figure()
     fig.add_trace(
@@ -107,6 +115,33 @@ def plot_comparison(df, real_col, pred_col, title, ytitle):
     return fig
 
 
+def plot_comparison_multi(dfs, real_col, pred_col, title, ytitle):
+    """Plot comparison for multiple prediction tables."""
+    fig = go.Figure()
+    first_df = next(iter(dfs.values()))
+    fig.add_trace(
+        go.Scatter(
+            x=first_df["date_key"],
+            y=first_df[real_col],
+            mode="lines+markers",
+            name="Réel",
+            line=dict(color=ASSOCIATED_COLORS[0]),
+        )
+    )
+    for idx, (name, df) in enumerate(dfs.items(), start=1):
+        fig.add_trace(
+            go.Scatter(
+                x=df["date_key"],
+                y=df[pred_col],
+                mode="lines+markers",
+                name=f"Prédit {name}",
+                line=dict(color=ASSOCIATED_COLORS[idx % len(ASSOCIATED_COLORS)]),
+            )
+        )
+    fig.update_layout(title=title, xaxis_title="Date", yaxis_title=ytitle, height=400)
+    return fig
+
+
 def plot_error(df, real_col, pred_col, title, ytitle):
     df = df.copy()
     df["error"] = df[real_col] - df[pred_col]
@@ -120,6 +155,30 @@ def plot_error(df, real_col, pred_col, title, ytitle):
         )
     )
     fig.update_layout(title=title, xaxis_title="Date", yaxis_title=ytitle, height=400)
+    return fig
+
+
+def plot_error_multi(dfs, real_col, pred_col, title, ytitle):
+    """Plot error for multiple tables."""
+    fig = go.Figure()
+    for idx, (name, df) in enumerate(dfs.items()):
+        tmp = df.copy()
+        tmp["error"] = tmp[real_col] - tmp[pred_col]
+        fig.add_trace(
+            go.Bar(
+                x=tmp["date_key"],
+                y=tmp["error"],
+                name=name,
+                marker_color=ASSOCIATED_COLORS[idx % len(ASSOCIATED_COLORS)],
+            )
+        )
+    fig.update_layout(
+        barmode="group",
+        title=title,
+        xaxis_title="Date",
+        yaxis_title=ytitle,
+        height=400,
+    )
     return fig
 
 
@@ -141,6 +200,29 @@ def plot_relative_error(df, real_col, pred_col, title):
     return fig
 
 
+def plot_relative_error_multi(dfs, real_col, pred_col, title):
+    fig = go.Figure()
+    for idx, (name, df) in enumerate(dfs.items()):
+        tmp = df.copy()
+        tmp["rel_error"] = (tmp[pred_col] - tmp[real_col]) / tmp[real_col] * 100
+        fig.add_trace(
+            go.Bar(
+                x=tmp["date_key"],
+                y=tmp["rel_error"],
+                name=name,
+                marker_color=ASSOCIATED_COLORS[idx % len(ASSOCIATED_COLORS)],
+            )
+        )
+    fig.update_layout(
+        barmode="group",
+        title=title,
+        xaxis_title="Date",
+        yaxis_title="Erreur (%)",
+        height=400,
+    )
+    return fig
+
+
 def plot_abs_error(df, real_col, pred_col, title, ytitle):
     df = df.copy()
     df["abs_error"] = (df[real_col] - df[pred_col]).abs()
@@ -157,11 +239,34 @@ def plot_abs_error(df, real_col, pred_col, title, ytitle):
     return fig
 
 
-def display_summary_pred(df_hist, df_pred):
-    start_pred = df_pred["date_key"].min()
-    first_pred = df_pred[df_pred["date_key"] == start_pred]
-    stock_pred_first = int(first_pred["stock_prediction"].sum())
-    price_pred_first = float(first_pred["price_prediction"].mean())
+def plot_abs_error_multi(dfs, real_col, pred_col, title, ytitle):
+    fig = go.Figure()
+    for idx, (name, df) in enumerate(dfs.items()):
+        tmp = df.copy()
+        tmp["abs_error"] = (tmp[real_col] - tmp[pred_col]).abs()
+        fig.add_trace(
+            go.Bar(
+                x=tmp["date_key"],
+                y=tmp["abs_error"],
+                name=name,
+                marker_color=ASSOCIATED_COLORS[idx % len(ASSOCIATED_COLORS)],
+            )
+        )
+    fig.update_layout(
+        barmode="group",
+        title=title,
+        xaxis_title="Date",
+        yaxis_title=ytitle,
+        height=400,
+    )
+    return fig
+
+
+def display_summary_pred(df_hist, pred_dict):
+    """Display summary metrics for each prediction table."""
+    if not pred_dict:
+        return
+    start_pred = min(df["date_key"].min() for df in pred_dict.values())
 
     hist_before = df_hist[df_hist["date_key"] < start_pred]
     if not hist_before.empty:
@@ -181,12 +286,23 @@ def display_summary_pred(df_hist, df_pred):
         price_real_prev = 0
 
     col1, col2 = st.columns(2)
-    col1.metric("Stock prédit premier jour", f"{stock_pred_first:,}")
-    col2.metric("Stock réel veille", f"{stock_real_prev:,}")
+    col1.metric("Stock réel veille", f"{stock_real_prev:,}")
+    col2.metric("Prix réel veille", f"{price_real_prev:.2f} €")
 
-    col3, col4 = st.columns(2)
-    col3.metric("Prix prédit premier jour", f"{price_pred_first:.2f} €")
-    col4.metric("Prix réel veille", f"{price_real_prev:.2f} €")
+    rows = []
+    for name, df_pred in pred_dict.items():
+        first_pred = df_pred[df_pred["date_key"] == start_pred]
+        stock_pred_first = int(first_pred["stock_prediction"].sum())
+        price_pred_first = float(first_pred["price_prediction"].mean())
+        rows.append(
+            {
+                "table": name,
+                "stock_pred_first": stock_pred_first,
+                "price_pred_first": price_pred_first,
+            }
+        )
+    st.subheader("Prédictions premier jour")
+    st.dataframe(pd.DataFrame(rows))
 
 
 def main():
@@ -209,8 +325,8 @@ def main():
         st.error("Aucune table de prédictions trouvée.")
         return
 
-    table_name = st.selectbox("Table de prédictions", tables)
-    df_pred = load_pred_cached(table_name)
+    selected_tables = st.sidebar.multiselect("Tables de prédictions", tables, default=tables[:1])
+    pred_dict = {t: load_pred_cached(t) for t in selected_tables}
 
     brands = st.sidebar.multiselect("Marques", sorted(df_hist["tyre_brand"].unique()))
     seasons = st.sidebar.multiselect(
@@ -219,30 +335,30 @@ def main():
     sizes = st.sidebar.multiselect("Tailles", sorted(df_hist["tyre_fullsize"].unique()))
 
     if st.sidebar.button("Appliquer"):
-        df_pred_f = filter_data(df_pred, brands, seasons, sizes)
+        pred_dict_f = {t: filter_data(pred, brands, seasons, sizes) for t, pred in pred_dict.items()}
         df_hist_f = filter_data(df_hist, brands, seasons, sizes)
-        df = prepare_comparison(df_hist_f, df_pred_f)
+        comps = prepare_comparison_multi(df_hist_f, pred_dict_f)
 
-        display_summary_pred(df_hist_f, df_pred_f)
+        display_summary_pred(df_hist_f, pred_dict_f)
 
         st.subheader("Comparaison stocks")
-        fig_stock = plot_comparison(
-            df, "stock_real", "stock_pred", "Stocks réels vs prédits", "Stock"
+        fig_stock = plot_comparison_multi(
+            comps, "stock_real", "stock_pred", "Stocks réels vs prédits", "Stock"
         )
         st.plotly_chart(fig_stock, use_container_width=True)
         st.subheader("Erreur de prédiction (stock)")
-        fig_err_stock = plot_error(
-            df, "stock_real", "stock_pred", "Erreur sur le stock", "Différence"
+        fig_err_stock = plot_error_multi(
+            comps, "stock_real", "stock_pred", "Erreur sur le stock", "Différence"
         )
         st.plotly_chart(fig_err_stock, use_container_width=True)
 
-        fig_rel_stock = plot_relative_error(
-            df, "stock_real", "stock_pred", "Erreur relative stock"
+        fig_rel_stock = plot_relative_error_multi(
+            comps, "stock_real", "stock_pred", "Erreur relative stock"
         )
         st.plotly_chart(fig_rel_stock, use_container_width=True)
 
-        fig_abs_stock = plot_abs_error(
-            df,
+        fig_abs_stock = plot_abs_error_multi(
+            comps,
             "stock_real",
             "stock_pred",
             "Erreur absolue stock",
@@ -251,23 +367,23 @@ def main():
         st.plotly_chart(fig_abs_stock, use_container_width=True)
 
         st.subheader("Comparaison prix")
-        fig_price = plot_comparison(
-            df, "price_real", "price_pred", "Prix réels vs prédits", "Prix (€)"
+        fig_price = plot_comparison_multi(
+            comps, "price_real", "price_pred", "Prix réels vs prédits", "Prix (€)"
         )
         st.plotly_chart(fig_price, use_container_width=True)
         st.subheader("Erreur de prédiction (prix)")
-        fig_err_price = plot_error(
-            df, "price_real", "price_pred", "Erreur sur le prix", "Différence"
+        fig_err_price = plot_error_multi(
+            comps, "price_real", "price_pred", "Erreur sur le prix", "Différence"
         )
         st.plotly_chart(fig_err_price, use_container_width=True)
 
-        fig_rel_price = plot_relative_error(
-            df, "price_real", "price_pred", "Erreur relative prix"
+        fig_rel_price = plot_relative_error_multi(
+            comps, "price_real", "price_pred", "Erreur relative prix"
         )
         st.plotly_chart(fig_rel_price, use_container_width=True)
 
-        fig_abs_price = plot_abs_error(
-            df,
+        fig_abs_price = plot_abs_error_multi(
+            comps,
             "price_real",
             "price_pred",
             "Erreur absolue prix",
@@ -275,9 +391,12 @@ def main():
         )
         st.plotly_chart(fig_abs_price, use_container_width=True)
 
-        df_display = df[
-            ["date_key", "stock_real", "stock_pred", "price_real", "price_pred"]
-        ]
+        frames = []
+        for name, df in comps.items():
+            tmp = df[["date_key", "stock_real", "stock_pred", "price_real", "price_pred"]].copy()
+            tmp["table"] = name
+            frames.append(tmp)
+        df_display = pd.concat(frames)
         st.subheader("Données de comparaison")
         st.dataframe(df_display)
     else:

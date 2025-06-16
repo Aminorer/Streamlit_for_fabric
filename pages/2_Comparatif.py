@@ -1,6 +1,7 @@
 import pandas as pd
 import streamlit as st
 import plotly.graph_objects as go
+import numpy as np
 
 from db_utils import (
     load_hist_data,
@@ -25,6 +26,16 @@ def load_hist_cached():
 @st.cache_data
 def load_pred_cached(table_name):
     return load_prediction_data(table_name)
+
+
+def filter_data(df, brands, seasons, sizes):
+    if brands:
+        df = df[df["tyre_brand"].isin(brands)]
+    if seasons:
+        df = df[df["tyre_season_french"].isin(seasons)]
+    if sizes:
+        df = df[df["tyre_fullsize"].isin(sizes)]
+    return df
 
 
 def list_prediction_tables():
@@ -72,18 +83,20 @@ def prepare_comparison(df_hist, df_pred):
     return pd.merge(df_hist, df_pred, on="date_key", how="inner")
 
 
-def compute_mae(df_hist, df_pred):
+def compute_metrics(df_hist, df_pred):
     df = prepare_comparison(df_hist, df_pred)
-    df["abs_err_stock"] = (df["stock_real"] - df["stock_pred"]).abs()
-    return df["abs_err_stock"].mean()
+    diff = df["stock_real"] - df["stock_pred"]
+    mae = diff.abs().mean()
+    rmse = np.sqrt((diff ** 2).mean())
+    mape = (diff.abs() / df["stock_real"].replace(0, np.nan)).mean() * 100
+    return mae, rmse, mape
 
 
-def compute_daily_summary(df_hist, tables):
+def compute_daily_summary(df_hist, pred_dict):
     frames = []
-    for t in tables:
-        df_pred = load_pred_cached(t)
+    for name, df_pred in pred_dict.items():
         comp = prepare_comparison(df_hist, df_pred)
-        comp["table"] = t
+        comp["table"] = name
         comp["abs_err_stock"] = (comp["stock_real"] - comp["stock_pred"]).abs()
         frames.append(comp[["date_key", "table", "abs_err_stock"]])
     if not frames:
@@ -113,6 +126,43 @@ def plot_overall_mae(summary):
         title="MAE global par modèle",
         xaxis_title="Modèle",
         yaxis_title="MAE",
+        height=400,
+    )
+    return fig
+
+
+def plot_overall_metric(summary, column, title, color_idx):
+    fig = go.Figure()
+    fig.add_trace(
+        go.Bar(
+            x=summary["table"],
+            y=summary[column],
+            marker_color=ASSOCIATED_COLORS[color_idx % len(ASSOCIATED_COLORS)],
+        )
+    )
+    fig.update_layout(
+        title=title,
+        xaxis_title="Modèle",
+        yaxis_title=column.upper(),
+        height=400,
+    )
+    return fig
+
+
+def plot_model_counts(daily, column, title, color_idx):
+    counts = daily[column].value_counts()
+    fig = go.Figure()
+    fig.add_trace(
+        go.Bar(
+            x=counts.index,
+            y=counts.values,
+            marker_color=ASSOCIATED_COLORS[color_idx % len(ASSOCIATED_COLORS)],
+        )
+    )
+    fig.update_layout(
+        title=title,
+        xaxis_title="Modèle",
+        yaxis_title="Nombre de jours",
         height=400,
     )
     return fig
@@ -159,24 +209,50 @@ def main():
         st.error("Aucune table de prédictions trouvée.")
         return
 
-    maes = []
-    for t in tables:
-        df_pred = load_pred_cached(t)
-        maes.append(compute_mae(df_hist, df_pred))
-    summary = pd.DataFrame({"table": tables, "mae": maes})
+    selected_tables = st.sidebar.multiselect("Tables à comparer", tables, default=tables)
+    brands = st.sidebar.multiselect("Marques", sorted(df_hist["tyre_brand"].unique()))
+    seasons = st.sidebar.multiselect("Saisons", sorted(df_hist["tyre_season_french"].unique()))
+    sizes = st.sidebar.multiselect("Tailles", sorted(df_hist["tyre_fullsize"].unique()))
 
-    best_table = summary.loc[summary["mae"].idxmin(), "table"]
-    st.metric("Meilleur modèle global", best_table)
+    if st.sidebar.button("Appliquer"):
+        df_hist_f = filter_data(df_hist, brands, seasons, sizes)
+        pred_dict = {
+            t: filter_data(load_pred_cached(t), brands, seasons, sizes)
+            for t in selected_tables
+        }
 
-    fig_overall = plot_overall_mae(summary)
-    st.plotly_chart(fig_overall, use_container_width=True)
+        metrics = [compute_metrics(df_hist_f, df) for df in pred_dict.values()]
+        summary = pd.DataFrame(
+            {
+                "table": list(pred_dict.keys()),
+                "mae": [m[0] for m in metrics],
+                "rmse": [m[1] for m in metrics],
+                "mape": [m[2] for m in metrics],
+            }
+        )
 
-    daily = compute_daily_summary(df_hist, tables)
-    if not daily.empty:
-        fig_daily = plot_daily_best_worst(daily)
-        st.plotly_chart(fig_daily, use_container_width=True)
-        st.subheader("Résumé quotidien")
-        st.dataframe(daily)
+        best_table = summary.loc[summary["mae"].idxmin(), "table"]
+        st.metric("Meilleur modèle global", best_table)
+
+        fig_mae = plot_overall_metric(summary, "mae", "MAE global par modèle", 0)
+        st.plotly_chart(fig_mae, use_container_width=True)
+        fig_rmse = plot_overall_metric(summary, "rmse", "RMSE global par modèle", 1)
+        st.plotly_chart(fig_rmse, use_container_width=True)
+        fig_mape = plot_overall_metric(summary, "mape", "MAPE global par modèle (%)", 2)
+        st.plotly_chart(fig_mape, use_container_width=True)
+
+        daily = compute_daily_summary(df_hist_f, pred_dict)
+        if not daily.empty:
+            fig_daily = plot_daily_best_worst(daily)
+            st.plotly_chart(fig_daily, use_container_width=True)
+            fig_best = plot_model_counts(daily, "best_model", "Nombre de jours meilleur", 3)
+            st.plotly_chart(fig_best, use_container_width=True)
+            fig_worst = plot_model_counts(daily, "worst_model", "Nombre de jours pire", 4)
+            st.plotly_chart(fig_worst, use_container_width=True)
+            st.subheader("Résumé quotidien")
+            st.dataframe(daily)
+    else:
+        st.info("Sélectionnez vos filtres puis cliquez sur Appliquer.")
 
 
 if __name__ == "__main__":
