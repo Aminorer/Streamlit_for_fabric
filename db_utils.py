@@ -115,19 +115,22 @@ def generate_codex_predictions(
     future_dates = pd.date_range(max_date + pd.Timedelta(days=1), periods=horizon)
 
     combos = df[cat_cols].drop_duplicates()
-    all_preds = []
-    for idx, d in enumerate(future_dates, start=1):
-        features = combos.copy()
-        features["date_ord"] = d.toordinal()
-        stock_pred = stock_model.predict(features[cat_cols + num_cols])
-        price_pred = price_model.predict(features[cat_cols + num_cols])
-        out = features.assign(
-            date_key=d,
-            stock_prediction=stock_pred,
-            price_prediction=price_pred,
-        )[["date_key"] + cat_cols + ["stock_prediction", "price_prediction"]]
-        all_preds.append(out)
-        if progress_callback is not None:
-            progress_callback(idx / len(future_dates))
 
-    return pd.concat(all_preds, ignore_index=True)
+    # Vectorized generation of future features instead of looping per day
+    future_df = (
+        combos.assign(key=1)
+        .merge(pd.DataFrame({"date_key": future_dates, "key": 1}), on="key")
+        .drop("key", axis=1)
+    )
+    future_df["date_ord"] = future_df["date_key"].map(pd.Timestamp.toordinal)
+
+    stock_pred = stock_model.predict(future_df[cat_cols + num_cols])
+    price_pred = price_model.predict(future_df[cat_cols + num_cols])
+
+    future_df["stock_prediction"] = stock_pred
+    future_df["price_prediction"] = price_pred
+
+    if progress_callback is not None:
+        progress_callback(1.0)
+
+    return future_df[["date_key"] + cat_cols + ["stock_prediction", "price_prediction"]]
