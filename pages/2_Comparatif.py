@@ -107,27 +107,32 @@ def compute_metrics(df_hist, df_pred):
 
 def compute_daily_summary(df_hist, pred_dict):
     """Return daily best and worst models based on MAE."""
+    # Aggregate historical data by day for faster processing
+    hist_daily = (
+        df_hist.groupby("date_key")["Sum_stock_quantity"].sum().reset_index()
+    )
+
     frames = []
     for name, df_pred in pred_dict.items():
+        # Aggregate predictions by day
+        pred_daily = (
+            df_pred.groupby("date_key")["stock_prediction"].sum().reset_index()
+        )
+
         merged = pd.merge(
-            df_hist,
-            df_pred,
-            on=[
-                "date_key",
-                "tyre_brand",
-                "tyre_season_french",
-                "tyre_fullsize",
-            ],
+            hist_daily,
+            pred_daily,
+            on="date_key",
             how="inner",
         )
+
         merged["abs_err_stock"] = (
             merged["Sum_stock_quantity"] - merged["stock_prediction"]
         ).abs()
-        daily_mae = (
-            merged.groupby("date_key")["abs_err_stock"].mean().reset_index()
+        merged["table"] = name
+        frames.append(
+            merged[["date_key", "table", "abs_err_stock"]]
         )
-        daily_mae["table"] = name
-        frames.append(daily_mae)
 
     if not frames:
         return pd.DataFrame()
