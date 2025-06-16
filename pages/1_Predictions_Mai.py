@@ -41,7 +41,9 @@ def list_prediction_tables():
     engine = get_engine()
     query = (
         "SELECT table_name FROM INFORMATION_SCHEMA.TABLES "
-        "WHERE table_schema = 'dbo' AND table_name LIKE 'fullsize_stock_pred%'"
+        "WHERE table_schema = 'dbo' "
+        "AND table_name LIKE 'fullsize_stock_pred%' "
+        "AND table_name NOT LIKE '%_june%'"
     )
     df = pd.read_sql(query, engine)
     return df["table_name"].tolist()
@@ -306,9 +308,9 @@ def display_summary_pred(df_hist, pred_dict):
 
 
 def main():
-    st.set_page_config(page_title="Prédictions", layout="wide")
+    st.set_page_config(page_title="Prédictions Mai", layout="wide")
     st.image("logo.png", width=150)
-    st.title("Analyse des prédictions")
+    st.title("Analyse des prédictions - Mai")
 
     st.markdown(
         """

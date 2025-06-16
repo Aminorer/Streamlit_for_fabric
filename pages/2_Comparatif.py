@@ -38,11 +38,17 @@ def filter_data(df, brands, seasons, sizes):
     return df
 
 
-def list_prediction_tables():
+def list_prediction_tables(month: str):
     engine = get_engine()
+    if month.lower() == "juin":
+        month_filter = "AND table_name LIKE '%_june%'"
+    else:
+        month_filter = "AND table_name NOT LIKE '%_june%'"
     query = (
         "SELECT table_name FROM INFORMATION_SCHEMA.TABLES "
-        "WHERE table_schema = 'dbo' AND table_name LIKE 'fullsize_stock_pred%'"
+        "WHERE table_schema = 'dbo' "
+        "AND table_name LIKE 'fullsize_stock_pred%' "
+        f"{month_filter}"
     )
     df = pd.read_sql(query, engine)
     return df["table_name"].tolist()
@@ -203,8 +209,10 @@ def main():
     st.image("logo.png", width=150)
     st.title("Comparaison des modèles")
 
+    month = st.sidebar.radio("Mois", ["Mai", "Juin"], index=0)
+
     df_hist = load_hist_cached()
-    tables = list_prediction_tables()
+    tables = list_prediction_tables(month)
     if not tables:
         st.error("Aucune table de prédictions trouvée.")
         return
