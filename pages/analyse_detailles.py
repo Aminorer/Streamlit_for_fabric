@@ -3,7 +3,7 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 
-from db_utils import get_engine
+from db_utils import get_engine, load_hist_data
 
 ASSOCIATED_COLORS = [
     "#7fbfdc",
@@ -39,6 +39,11 @@ def load_prediction_data(table_name: str) -> pd.DataFrame:
         df["date_key"] = pd.to_datetime(df["date_key"], errors="coerce")
         df.dropna(subset=["date_key"], inplace=True)
     return df
+
+
+@st.cache_data
+def load_hist_cached():
+    return load_hist_data()
 
 def filter_data(df: pd.DataFrame, brands, seasons, sizes) -> pd.DataFrame:
     if brands:
@@ -107,6 +112,22 @@ if agg_map:
 else:
     agg_df = pd.DataFrame()
 
+# Load and aggregate real historical data for comparison
+df_hist = load_hist_cached()
+hist_f = filter_data(df_hist, brands, seasons, sizes)
+if not hist_f.empty:
+    hist_agg = (
+        hist_f.groupby("date_key")
+        .agg(
+            stock_real=("Sum_stock_quantity", "sum"),
+            price_real=("Avg_supplier_price_eur", lambda x: x[x > 0].mean()),
+        )
+        .reset_index()
+    )
+    comp_df = pd.merge(agg_df, hist_agg, on="date_key", how="left")
+else:
+    comp_df = agg_df.copy()
+
 # ----- Metrics -----
 c1, c2, c3 = st.columns(3)
 c1.metric("Nombre d'entrées", len(flt))
@@ -126,50 +147,102 @@ if "price_prediction" in flt.columns:
 # ----- Graphs -----
 
 # 1. Stock prediction over time
-if {"date_key", "stock_prediction"}.issubset(agg_df.columns):
-    fig = px.line(
-        agg_df,
-        x="date_key",
-        y="stock_prediction",
+if {"date_key", "stock_prediction"}.issubset(comp_df.columns):
+    fig = go.Figure()
+    if "stock_real" in comp_df.columns:
+        fig.add_trace(
+            go.Scatter(
+                x=comp_df["date_key"],
+                y=comp_df["stock_real"],
+                mode="lines+markers",
+                name="Réel",
+                line=dict(color=ASSOCIATED_COLORS[0]),
+            )
+        )
+    fig.add_trace(
+        go.Scatter(
+            x=comp_df["date_key"],
+            y=comp_df["stock_prediction"],
+            mode="lines+markers",
+            name="Prédit",
+            line=dict(color=ASSOCIATED_COLORS[1]),
+        )
+    )
+    fig.update_layout(
         title="Évolution des prédictions de stock",
+        xaxis_title="Date",
+        yaxis_title="Stock",
     )
     st.plotly_chart(fig, use_container_width=True)
 
 # 2. Price prediction over time
-if {"date_key", "price_prediction"}.issubset(agg_df.columns):
-    fig = px.line(
-        agg_df,
-        x="date_key",
-        y="price_prediction",
+if {"date_key", "price_prediction"}.issubset(comp_df.columns):
+    fig = go.Figure()
+    if "price_real" in comp_df.columns:
+        fig.add_trace(
+            go.Scatter(
+                x=comp_df["date_key"],
+                y=comp_df["price_real"],
+                mode="lines+markers",
+                name="Réel",
+                line=dict(color=ASSOCIATED_COLORS[0]),
+            )
+        )
+    fig.add_trace(
+        go.Scatter(
+            x=comp_df["date_key"],
+            y=comp_df["price_prediction"],
+            mode="lines+markers",
+            name="Prédit",
+            line=dict(color=ASSOCIATED_COLORS[1]),
+        )
+    )
+    fig.update_layout(
         title="Évolution des prédictions de prix",
+        xaxis_title="Date",
+        yaxis_title="Prix",
     )
     st.plotly_chart(fig, use_container_width=True)
 
 # 3. Stock prediction confidence band
-if {"date_key", "stock_prediction", "ic_stock_plus", "ic_stock_minus"}.issubset(agg_df.columns):
+if {
+    "date_key",
+    "stock_prediction",
+    "ic_stock_plus",
+    "ic_stock_minus",
+}.issubset(comp_df.columns):
     fig = go.Figure()
+    if "stock_real" in comp_df.columns:
+        fig.add_trace(
+            go.Scatter(
+                x=comp_df["date_key"],
+                y=comp_df["stock_real"],
+                name="Réel",
+                line=dict(color=ASSOCIATED_COLORS[0]),
+            )
+        )
     fig.add_trace(
         go.Scatter(
-            x=agg_df["date_key"],
-            y=agg_df["stock_prediction"],
-            name="Prédiction",
-            line=dict(color=ASSOCIATED_COLORS[0]),
+            x=comp_df["date_key"],
+            y=comp_df["stock_prediction"],
+            name="Prédit",
+            line=dict(color=ASSOCIATED_COLORS[1]),
         )
     )
     fig.add_trace(
         go.Scatter(
-            x=agg_df["date_key"],
-            y=agg_df["ic_stock_plus"],
+            x=comp_df["date_key"],
+            y=comp_df["ic_stock_plus"],
             name="IC +",
-            line=dict(color=ASSOCIATED_COLORS[1], dash="dash"),
+            line=dict(color=ASSOCIATED_COLORS[2], dash="dash"),
         )
     )
     fig.add_trace(
         go.Scatter(
-            x=agg_df["date_key"],
-            y=agg_df["ic_stock_minus"],
+            x=comp_df["date_key"],
+            y=comp_df["ic_stock_minus"],
             name="IC -",
-            line=dict(color=ASSOCIATED_COLORS[1], dash="dash"),
+            line=dict(color=ASSOCIATED_COLORS[2], dash="dash"),
             fill="tonexty",
         )
     )
@@ -181,30 +254,44 @@ if {"date_key", "stock_prediction", "ic_stock_plus", "ic_stock_minus"}.issubset(
     st.plotly_chart(fig, use_container_width=True)
 
 # 4. Price prediction confidence band
-if {"date_key", "price_prediction", "ic_price_plus", "ic_price_minus"}.issubset(agg_df.columns):
+if {
+    "date_key",
+    "price_prediction",
+    "ic_price_plus",
+    "ic_price_minus",
+}.issubset(comp_df.columns):
     fig = go.Figure()
+    if "price_real" in comp_df.columns:
+        fig.add_trace(
+            go.Scatter(
+                x=comp_df["date_key"],
+                y=comp_df["price_real"],
+                name="Réel",
+                line=dict(color=ASSOCIATED_COLORS[0]),
+            )
+        )
     fig.add_trace(
         go.Scatter(
-            x=agg_df["date_key"],
-            y=agg_df["price_prediction"],
-            name="Prédiction",
-            line=dict(color=ASSOCIATED_COLORS[2]),
+            x=comp_df["date_key"],
+            y=comp_df["price_prediction"],
+            name="Prédit",
+            line=dict(color=ASSOCIATED_COLORS[1]),
         )
     )
     fig.add_trace(
         go.Scatter(
-            x=agg_df["date_key"],
-            y=agg_df["ic_price_plus"],
+            x=comp_df["date_key"],
+            y=comp_df["ic_price_plus"],
             name="IC +",
-            line=dict(color=ASSOCIATED_COLORS[3], dash="dash"),
+            line=dict(color=ASSOCIATED_COLORS[2], dash="dash"),
         )
     )
     fig.add_trace(
         go.Scatter(
-            x=agg_df["date_key"],
-            y=agg_df["ic_price_minus"],
+            x=comp_df["date_key"],
+            y=comp_df["ic_price_minus"],
             name="IC -",
-            line=dict(color=ASSOCIATED_COLORS[3], dash="dash"),
+            line=dict(color=ASSOCIATED_COLORS[2], dash="dash"),
             fill="tonexty",
         )
     )
