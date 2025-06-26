@@ -94,6 +94,19 @@ if flt.empty:
     st.warning("Aucune donnée pour ces filtres.")
     st.stop()
 
+# Aggregate once for faster plots
+agg_map = {}
+for c in ["stock_prediction", "ic_stock_plus", "ic_stock_minus"]:
+    if c in flt.columns:
+        agg_map[c] = "sum"
+for c in ["price_prediction", "ic_price_plus", "ic_price_minus", "stability_index"]:
+    if c in flt.columns:
+        agg_map[c] = "mean"
+if agg_map:
+    agg_df = flt.groupby("date_key").agg(agg_map).reset_index()
+else:
+    agg_df = pd.DataFrame()
+
 # ----- Metrics -----
 c1, c2, c3 = st.columns(3)
 c1.metric("Nombre d'entrées", len(flt))
@@ -101,39 +114,105 @@ if "stock_prediction" in flt.columns:
     c2.metric("Stock moyen", f"{flt['stock_prediction'].mean():.1f}")
 if "price_prediction" in flt.columns:
     c3.metric("Prix moyen", f"{flt['price_prediction'].mean():.2f} €")
-if "out_of_stock_days" in flt.columns:
-    st.metric("Jours sans stock cumulés", int(flt["out_of_stock_days"].sum()))
+
+c4, c5 = st.columns(2)
+if "stock_prediction" in flt.columns:
+    c4.metric(
+        "Stock total prédicté", f"{int(flt['stock_prediction'].sum()):,}"
+    )
+if "price_prediction" in flt.columns:
+    c5.metric("Prix médian", f"{flt['price_prediction'].median():.2f} €")
 
 # ----- Graphs -----
 
 # 1. Stock prediction over time
-if {"date_key", "stock_prediction"}.issubset(flt.columns):
-    fig = px.line(flt, x="date_key", y="stock_prediction", color="tyre_fullsize" if len(sizes) != 1 else None,
-                  title="Évolution des prédictions de stock")
+if {"date_key", "stock_prediction"}.issubset(agg_df.columns):
+    fig = px.line(
+        agg_df,
+        x="date_key",
+        y="stock_prediction",
+        title="Évolution des prédictions de stock",
+    )
     st.plotly_chart(fig, use_container_width=True)
 
 # 2. Price prediction over time
-if {"date_key", "price_prediction"}.issubset(flt.columns):
-    fig = px.line(flt, x="date_key", y="price_prediction", color="tyre_fullsize" if len(sizes) != 1 else None,
-                  title="Évolution des prédictions de prix")
+if {"date_key", "price_prediction"}.issubset(agg_df.columns):
+    fig = px.line(
+        agg_df,
+        x="date_key",
+        y="price_prediction",
+        title="Évolution des prédictions de prix",
+    )
     st.plotly_chart(fig, use_container_width=True)
 
 # 3. Stock prediction confidence band
-if {"date_key", "stock_prediction", "ic_stock_plus", "ic_stock_minus"}.issubset(flt.columns):
+if {"date_key", "stock_prediction", "ic_stock_plus", "ic_stock_minus"}.issubset(agg_df.columns):
     fig = go.Figure()
-    fig.add_trace(go.Scatter(x=flt["date_key"], y=flt["stock_prediction"], name="Prédiction", line=dict(color=ASSOCIATED_COLORS[0])))
-    fig.add_trace(go.Scatter(x=flt["date_key"], y=flt["ic_stock_plus"], name="IC +", line=dict(color=ASSOCIATED_COLORS[1], dash="dash")))
-    fig.add_trace(go.Scatter(x=flt["date_key"], y=flt["ic_stock_minus"], name="IC -", line=dict(color=ASSOCIATED_COLORS[1], dash="dash"), fill="tonexty"))
-    fig.update_layout(title="Bande de confiance sur le stock", xaxis_title="Date", yaxis_title="Stock")
+    fig.add_trace(
+        go.Scatter(
+            x=agg_df["date_key"],
+            y=agg_df["stock_prediction"],
+            name="Prédiction",
+            line=dict(color=ASSOCIATED_COLORS[0]),
+        )
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=agg_df["date_key"],
+            y=agg_df["ic_stock_plus"],
+            name="IC +",
+            line=dict(color=ASSOCIATED_COLORS[1], dash="dash"),
+        )
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=agg_df["date_key"],
+            y=agg_df["ic_stock_minus"],
+            name="IC -",
+            line=dict(color=ASSOCIATED_COLORS[1], dash="dash"),
+            fill="tonexty",
+        )
+    )
+    fig.update_layout(
+        title="Bande de confiance sur le stock",
+        xaxis_title="Date",
+        yaxis_title="Stock",
+    )
     st.plotly_chart(fig, use_container_width=True)
 
 # 4. Price prediction confidence band
-if {"date_key", "price_prediction", "ic_price_plus", "ic_price_minus"}.issubset(flt.columns):
+if {"date_key", "price_prediction", "ic_price_plus", "ic_price_minus"}.issubset(agg_df.columns):
     fig = go.Figure()
-    fig.add_trace(go.Scatter(x=flt["date_key"], y=flt["price_prediction"], name="Prédiction", line=dict(color=ASSOCIATED_COLORS[2])))
-    fig.add_trace(go.Scatter(x=flt["date_key"], y=flt["ic_price_plus"], name="IC +", line=dict(color=ASSOCIATED_COLORS[3], dash="dash")))
-    fig.add_trace(go.Scatter(x=flt["date_key"], y=flt["ic_price_minus"], name="IC -", line=dict(color=ASSOCIATED_COLORS[3], dash="dash"), fill="tonexty"))
-    fig.update_layout(title="Bande de confiance sur le prix", xaxis_title="Date", yaxis_title="Prix")
+    fig.add_trace(
+        go.Scatter(
+            x=agg_df["date_key"],
+            y=agg_df["price_prediction"],
+            name="Prédiction",
+            line=dict(color=ASSOCIATED_COLORS[2]),
+        )
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=agg_df["date_key"],
+            y=agg_df["ic_price_plus"],
+            name="IC +",
+            line=dict(color=ASSOCIATED_COLORS[3], dash="dash"),
+        )
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=agg_df["date_key"],
+            y=agg_df["ic_price_minus"],
+            name="IC -",
+            line=dict(color=ASSOCIATED_COLORS[3], dash="dash"),
+            fill="tonexty",
+        )
+    )
+    fig.update_layout(
+        title="Bande de confiance sur le prix",
+        xaxis_title="Date",
+        yaxis_title="Prix",
+    )
     st.plotly_chart(fig, use_container_width=True)
 
 # 5. Mean confidence by brand
@@ -169,9 +248,13 @@ if {"tyre_fullsize", "rupture_duration_max"}.issubset(flt.columns):
     st.plotly_chart(fig, use_container_width=True)
 
 # 10. Stability index over time
-if {"date_key", "stability_index"}.issubset(flt.columns):
-    fig = px.line(flt, x="date_key", y="stability_index", color="tyre_fullsize" if len(sizes) != 1 else None,
-                  title="Évolution du stability_index")
+if {"date_key", "stability_index"}.issubset(agg_df.columns):
+    fig = px.line(
+        agg_df,
+        x="date_key",
+        y="stability_index",
+        title="Évolution du stability_index",
+    )
     st.plotly_chart(fig, use_container_width=True)
 
 # 11. Heatmap brand vs volatility type with criticality score
