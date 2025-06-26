@@ -1,23 +1,12 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-from db_utils import get_engine
-
-
-@st.cache_data
-def load_stock_data():
-    """Load the enriched June prediction table from the database."""
-    engine = get_engine()
-    query = (
-        "SELECT * FROM dbo.fullsize_stock_pred_enriched_xgb_june"
-    )
-    df = pd.read_sql(query, engine)
-    return df
 
 st.set_page_config(page_title="Analyse détaillées", layout="wide")
 
 if "stock_data" not in st.session_state:
-    st.session_state["stock_data"] = load_stock_data()
+    st.warning("Merci de d'abord charger la table fullsize_stock_pred_enriched_xgb_june.")
+    st.stop()
 
 df = st.session_state["stock_data"].copy()
 
