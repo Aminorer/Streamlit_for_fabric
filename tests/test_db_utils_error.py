@@ -24,6 +24,21 @@ def test_load_hist_data_returns_empty_on_error(monkeypatch, caplog):
     assert "Erreur lors du chargement des données historiques" in caplog.text
 
 
+def test_load_prediction_data_returns_empty_on_error(monkeypatch, caplog):
+    def fake_read_sql(query, engine, params=None):
+        raise SQLAlchemyError("boom")
+
+    monkeypatch.setattr(db_utils, "get_engine_pred", lambda: object())
+    monkeypatch.setattr(db_utils, "find_pred_tables", lambda: ["tbl"])
+    monkeypatch.setattr(db_utils, "ALLOWED_TABLES", {"tbl"})
+    monkeypatch.setattr(pd, "read_sql", fake_read_sql)
+
+    with caplog.at_level("ERROR"):
+        df = db_utils.load_prediction_data()
+    assert df.empty
+    assert "Erreur lors du chargement des données de prédiction" in caplog.text
+
+
 def test_save_dataframe_to_table_handles_error(monkeypatch, caplog):
     df = pd.DataFrame({"a": [1]})
 

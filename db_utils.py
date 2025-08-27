@@ -284,6 +284,58 @@ def load_hist_data(
         return pd.DataFrame()
 
 
+@st.cache_data(show_spinner=False)
+def load_prediction_data(
+    brands: Optional[List[str]] = None,
+    seasons: Optional[List[str]] = None,
+    sizes: Optional[List[str]] = None,
+    target_date: Optional[pd.Timestamp] = None,
+):
+    """Load prediction data applying optional filters at the SQL level."""
+    tables = find_pred_tables()
+    if not tables:
+        logger.error(
+            "Aucune table de prédiction trouvée correspondant au motif pred_%"
+        )
+        return pd.DataFrame()
+    table_name = tables[0]
+    _assert_allowed_table(table_name)
+    engine = get_engine_pred()
+    query = (
+        "SELECT date_key, tyre_brand, tyre_season_french, tyre_fullsize, "
+        "stock_status, main_rupture_date, criticality_score "
+        f"FROM dbo.{table_name} WHERE 1=1"
+    )
+    params: Dict[str, object] = {}
+    if brands:
+        placeholders = ",".join([f":brand{i}" for i in range(len(brands))])
+        query += f" AND tyre_brand IN ({placeholders})"
+        params.update({f"brand{i}": b for i, b in enumerate(brands)})
+    if seasons:
+        placeholders = ",".join([f":season{i}" for i in range(len(seasons))])
+        query += f" AND tyre_season_french IN ({placeholders})"
+        params.update({f"season{i}": s for i, s in enumerate(seasons)})
+    if sizes:
+        placeholders = ",".join([f":size{i}" for i in range(len(sizes))])
+        query += f" AND tyre_fullsize IN ({placeholders})"
+        params.update({f"size{i}": sz for i, sz in enumerate(sizes)})
+    if target_date is not None:
+        query += " AND date_key = :target_date"
+        params["target_date"] = target_date
+    try:
+        if params:
+            df = pd.read_sql(query, engine, params=params)
+        else:
+            df = pd.read_sql(query, engine)
+        df["date_key"] = pd.to_datetime(df["date_key"])
+        if "main_rupture_date" in df:
+            df["main_rupture_date"] = pd.to_datetime(df["main_rupture_date"])
+        return df
+    except SQLAlchemyError as e:
+        logger.error("Erreur lors du chargement des données de prédiction: %s", e)
+        return pd.DataFrame()
+
+
 def prediction_table_exists(table_name: str) -> bool:
     """Check if a prediction table already exists in the database."""
     return table_name in find_pred_tables()
