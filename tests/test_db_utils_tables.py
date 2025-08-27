@@ -149,3 +149,8 @@ def test_load_prediction_data_filters(monkeypatch):
     assert isinstance(df.loc[0, "main_rupture_date"], pd.Timestamp)
     assert isinstance(df.loc[0, "optimal_order_date"], pd.Timestamp)
     assert isinstance(df.loc[0, "last_safe_order_date"], pd.Timestamp)
+
+
+if __name__ == "__main__":
+    import pytest
+    raise SystemExit(pytest.main([__file__]))

@@ -60,3 +60,11 @@ Un fichier d'exemple `secret.env.example` est disponible à la racine : copiez-
    requête.
 
 Assurez-vous que ces variables sont définies avant de lancer l'application et que `ALLOWED_TABLES` contient bien la whiteliste des tables disponibles.
+
+## Tests
+
+Executez la suite de tests avec [pytest](https://pytest.org/):
+
+```bash
+pytest tests/
+```
