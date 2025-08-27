@@ -57,6 +57,9 @@ Un fichier d'exemple `secret.env.example` est disponible à la racine : copiez-
 - `SQL_SERVER_PRED` – Adresse du serveur des tables de prédiction.
 - `SQL_DATABASE_PRED` – Base contenant les tables de prédiction.
 
+Les variables génériques `SQL_SERVER` et `SQL_DATABASE` ne sont plus prises en
+charge ; vous devez définir explicitement les quatre variables ci-dessus.
+
 ### Conventions de nommage des tables
 
 Les tables historiques suivent le motif `fullsize_stock_hist_%` et les tables de prédiction le motif `pred_%`. Les suffixes doivent correspondre pour former une paire cohérente, par exemple : `fullsize_stock_hist_amz_man` et `pred_amz_man`.
