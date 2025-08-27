@@ -95,6 +95,8 @@ def test_load_prediction_data_filters(monkeypatch):
                 "tyre_season_french": ["Ete"],
                 "stock_prediction": [1.0],
                 "price_prediction": [100.0],
+                "ic_price_plus": [110.0],
+                "ic_price_minus": [90.0],
                 "ic_stock_plus": [1.1],
                 "ic_stock_minus": [0.9],
                 "prediction_confidence": [0.8],
@@ -115,6 +117,7 @@ def test_load_prediction_data_filters(monkeypatch):
                 "supply_chain_alert": ["NONE"],
                 "volatility_type": ["NORMAL"],
                 "procurement_urgency": ["LOW"],
+                "price_jump_alert": [0],
             }
         )
 

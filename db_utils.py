@@ -310,13 +310,14 @@ def load_prediction_data(
     engine = get_engine_pred()
     query = (
         "SELECT date_key, tyre_fullsize, tyre_brand, tyre_season_french, "
-        "stock_prediction, price_prediction, ic_stock_plus, ic_stock_minus, "
-        "prediction_confidence, stock_status, volatility_status, "
-        "main_rupture_date, order_recommendation, tension_days, "
-        "recommended_volume, optimal_order_date, last_safe_order_date, "
-        "margin_opportunity_days, criticality_score, risk_level, "
-        "stability_index, anomaly_alert, seasonal_factor, "
-        "supply_chain_alert, volatility_type, procurement_urgency "
+        "stock_prediction, price_prediction, ic_price_plus, ic_price_minus, "
+        "ic_stock_plus, ic_stock_minus, prediction_confidence, stock_status, "
+        "volatility_status, main_rupture_date, order_recommendation, "
+        "tension_days, recommended_volume, optimal_order_date, "
+        "last_safe_order_date, margin_opportunity_days, criticality_score, "
+        "risk_level, stability_index, anomaly_alert, seasonal_factor, "
+        "supply_chain_alert, volatility_type, procurement_urgency, "
+        "price_jump_alert "
         f"FROM dbo.{table_name} WHERE 1=1"
     )
     params: Dict[str, object] = {}
