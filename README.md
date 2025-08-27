@@ -44,7 +44,8 @@ sont exposées dans `INFORMATION_SCHEMA.TABLES` sous le schéma `dbo`.
 
 ## Variables d'environnement
 
-Les informations de connexion sont fournies via des variables d'environnement (par exemple dans `secret.env`) :
+Les informations de connexion sont fournies via des variables d'environnement (par exemple dans `secret.env`).
+Un fichier d'exemple `secret.env.example` est disponible à la racine : copiez-le en `secret.env` et renseignez vos propres valeurs, puis ajustez les variables suivantes :
 
  - `SQL_USER` – Nom d'utilisateur SQL.
  - `SQL_PASSWORD` – Mot de passe SQL.
