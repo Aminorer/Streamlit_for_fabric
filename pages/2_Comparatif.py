@@ -4,6 +4,7 @@ import plotly.graph_objects as go
 import numpy as np
 
 from sqlalchemy import bindparam, text
+from sqlalchemy.exc import SQLAlchemyError
 
 from db_utils import (
     load_hist_data,
@@ -76,7 +77,12 @@ def list_prediction_tables(month: str):
             bindparam("pattern", value="fullsize_stock_pred%"),
             bindparam("month_pattern", value="%_june%"),
         )
-    df = pd.read_sql(stmt, engine)
+    try:
+        df = pd.read_sql(stmt, engine)
+    except SQLAlchemyError:
+        st.error("Erreur lors de la récupération des tables de prédictions.")
+        ALLOWED_TABLES.clear()
+        return []
     global ALLOWED_TABLES
     ALLOWED_TABLES = {name: name for name in df["table_name"]}
     return list(ALLOWED_TABLES.keys())
@@ -90,7 +96,11 @@ def load_prediction_data(table_name):
         "SELECT date_key, tyre_brand, tyre_season_french, tyre_fullsize, "
         "stock_prediction, price_prediction FROM dbo." + ALLOWED_TABLES[table_name]
     )
-    df = pd.read_sql(stmt, engine)
+    try:
+        df = pd.read_sql(stmt, engine)
+    except SQLAlchemyError:
+        st.error("Erreur lors du chargement des données de prédiction.")
+        return pd.DataFrame()
     df["date_key"] = pd.to_datetime(df["date_key"])
     return df
 

@@ -1,3 +1,4 @@
+import logging
 import os
 import pandas as pd
 from sqlalchemy import create_engine
@@ -11,6 +12,8 @@ from dotenv import load_dotenv
 from typing import Callable, Optional
 
 load_dotenv("secret.env")
+
+logger = logging.getLogger(__name__)
 
 
 def _build_engine(database: str) -> Engine:
@@ -60,9 +63,13 @@ def load_hist_data():
         "SELECT date_key, tyre_brand, tyre_season_french, tyre_fullsize, "
         "Sum_stock_quantity, Avg_supplier_price_eur FROM dbo.fullsize_stock_hist"
     )
-    df = pd.read_sql(query, engine)
-    df["date_key"] = pd.to_datetime(df["date_key"])
-    return df
+    try:
+        df = pd.read_sql(query, engine)
+        df["date_key"] = pd.to_datetime(df["date_key"])
+        return df
+    except SQLAlchemyError as e:
+        logger.error("Erreur lors du chargement des données historiques: %s", e)
+        return pd.DataFrame()
 
 
 def prediction_table_exists(table_name: str) -> bool:
@@ -74,15 +81,29 @@ def prediction_table_exists(table_name: str) -> bool:
     )
     try:
         df = pd.read_sql(query, engine, params=[table_name])
-    except SQLAlchemyError:
+    except SQLAlchemyError as e:
+        logger.error("Erreur lors de la vérification de la table %s: %s", table_name, e)
         return False
     return not df.empty
 
 
-def save_dataframe_to_table(df: pd.DataFrame, table_name: str) -> None:
+def save_dataframe_to_table(df: pd.DataFrame, table_name: str) -> pd.DataFrame:
     """Save a DataFrame to the specified SQL table."""
     engine = get_engine_pred()
-    df.to_sql(table_name, con=engine, schema="dbo", index=False, if_exists="replace")
+    try:
+        df.to_sql(
+            table_name,
+            con=engine,
+            schema="dbo",
+            index=False,
+            if_exists="replace",
+        )
+        return df
+    except SQLAlchemyError as e:
+        logger.error(
+            "Erreur lors de l'enregistrement de la table %s: %s", table_name, e
+        )
+        return pd.DataFrame()
 
 
 def generate_codex_predictions(
