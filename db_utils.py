@@ -9,7 +9,7 @@ from sklearn.preprocessing import OneHotEncoder
 from sklearn.pipeline import Pipeline
 from sklearn.ensemble import RandomForestRegressor
 from dotenv import load_dotenv
-from typing import Callable, Optional, List
+from typing import Callable, Optional, List, Dict, Tuple
 
 load_dotenv("secret.env")
 
@@ -89,6 +89,127 @@ def find_pred_tables() -> List[str]:
             "Erreur lors de la récupération des tables de prédiction: %s", e
         )
         return []
+
+
+def discover_platforms() -> Dict[str, List[str]]:
+    """Discover available platforms and activities from table names.
+
+    Table names are expected to follow the pattern ``prefix_platform_activity``
+    where ``prefix`` is either ``fullsize_stock_hist`` or ``pred``.
+
+    Returns
+    -------
+    Dict[str, List[str]]
+        Mapping of platform name to the list of activity types found for that
+        platform.
+    """
+
+    tables = find_hist_tables() + find_pred_tables()
+    platforms: Dict[str, set] = {}
+    for tbl in tables:
+        if tbl.startswith("fullsize_stock_hist_"):
+            suffix = tbl.replace("fullsize_stock_hist_", "")
+        elif tbl.startswith("pred_"):
+            suffix = tbl.replace("pred_", "")
+        else:
+            continue
+
+        parts = suffix.split("_")
+        if len(parts) != 2:
+            logger.warning("Table name '%s' does not match pattern '_XX_YY'", tbl)
+            continue
+        platform, activity = parts[0].lower(), parts[1].lower()
+        platforms.setdefault(platform, set()).add(activity)
+
+    return {plat: sorted(list(acts)) for plat, acts in sorted(platforms.items())}
+
+
+def get_matching_tables(platform: str, activity_type: str) -> Tuple[Optional[str], Optional[str]]:
+    """Return historical and prediction table names for the given platform.
+
+    Parameters
+    ----------
+    platform : str
+        Platform identifier (e.g. ``amz``).
+    activity_type : str
+        Activity type identifier (e.g. ``man``, ``dis``, ``mixte``).
+
+    Returns
+    -------
+    Tuple[Optional[str], Optional[str]]
+        A tuple ``(historical_table, prediction_table)``. Each element may be
+        ``None`` if no matching table is found.
+    """
+
+    suffix = f"{platform.lower()}_{activity_type.lower()}"
+    hist_table = next(
+        (tbl for tbl in find_hist_tables() if tbl.lower().endswith(suffix)), None
+    )
+    pred_table = next(
+        (tbl for tbl in find_pred_tables() if tbl.lower().endswith(suffix)), None
+    )
+    return hist_table, pred_table
+
+
+def validate_table_consistency(hist_table: str, pred_table: str) -> bool:
+    """Validate that historical and prediction tables are consistent.
+
+    The function checks that both tables refer to the same platform and
+    activity type and that the schema of the historical table is a subset of
+    the prediction table schema.
+
+    Parameters
+    ----------
+    hist_table : str
+        Name of the historical table (``fullsize_stock_hist_*``).
+    pred_table : str
+        Name of the prediction table (``pred_*``).
+
+    Returns
+    -------
+    bool
+        ``True`` if tables are consistent, ``False`` otherwise.
+    """
+
+    hist_suffix = hist_table.replace("fullsize_stock_hist_", "").lower()
+    pred_suffix = pred_table.replace("pred_", "").lower()
+    if hist_suffix != pred_suffix:
+        logger.error(
+            "Mismatch between historical table %s and prediction table %s",
+            hist_table,
+            pred_table,
+        )
+        return False
+
+    try:
+        hist_df = pd.read_sql(
+            f"SELECT TOP 0 * FROM dbo.{hist_table}", get_engine_hist()
+        )
+        pred_df = pd.read_sql(
+            f"SELECT TOP 0 * FROM dbo.{pred_table}", get_engine_pred()
+        )
+    except SQLAlchemyError as e:
+        logger.error(
+            "Erreur lors de la comparaison des tables %s et %s: %s",
+            hist_table,
+            pred_table,
+            e,
+        )
+        return False
+
+    hist_cols = set(hist_df.columns)
+    pred_cols = set(pred_df.columns)
+    if not hist_cols.issubset(pred_cols):
+        logger.error(
+            "Incompatible schemas for %s and %s: %s vs %s",
+            hist_table,
+            pred_table,
+            sorted(hist_cols),
+            sorted(pred_cols),
+        )
+        return False
+
+    return True
 
 
 def load_hist_data():
