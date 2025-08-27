@@ -26,14 +26,17 @@ def _assert_allowed_table(table: str) -> None:
         raise ValueError(f"Table '{table}' is not allowed.")
 
 
-def _build_engine(database: str) -> Engine:
+def _build_engine(server: str, database: str) -> Engine:
+    """Create a SQLAlchemy engine for the given server and database."""
+
     user = os.getenv("SQL_USER")
     password = os.getenv("SQL_PASSWORD")
-    server = os.getenv("SQL_SERVER")
     driver = os.getenv("SQL_DRIVER")
 
     if driver is None:
-        raise ValueError("La variable d'environnement SQL_DRIVER est manquante.")
+        raise ValueError(
+            "La variable d'environnement SQL_DRIVER est manquante."
+        )
     driver = driver.replace(" ", "+")
 
     connection_string = (
@@ -47,24 +50,45 @@ def _build_engine(database: str) -> Engine:
 
 
 def get_engine_hist() -> Engine:
+    server = os.getenv("SQL_SERVER_HIST")
     database = os.getenv("SQL_DATABASE_HIST")
+    if server is None:
+        raise ValueError(
+            "La variable d'environnement SQL_SERVER_HIST est manquante."
+        )
     if database is None:
-        raise ValueError("La variable d'environnement SQL_DATABASE_HIST est manquante.")
-    return _build_engine(database)
+        raise ValueError(
+            "La variable d'environnement SQL_DATABASE_HIST est manquante."
+        )
+    return _build_engine(server, database)
 
 
 def get_engine_pred() -> Engine:
+    server = os.getenv("SQL_SERVER_PRED")
     database = os.getenv("SQL_DATABASE_PRED")
+    if server is None:
+        raise ValueError(
+            "La variable d'environnement SQL_SERVER_PRED est manquante."
+        )
     if database is None:
-        raise ValueError("La variable d'environnement SQL_DATABASE_PRED est manquante.")
-    return _build_engine(database)
+        raise ValueError(
+            "La variable d'environnement SQL_DATABASE_PRED est manquante."
+        )
+    return _build_engine(server, database)
 
 
 def get_engine() -> Engine:
+    server = os.getenv("SQL_SERVER")
     database = os.getenv("SQL_DATABASE")
+    if server is None:
+        raise ValueError(
+            "La variable d'environnement SQL_SERVER est manquante."
+        )
     if database is None:
-        raise ValueError("La variable d'environnement SQL_DATABASE est manquante.")
-    return _build_engine(database)
+        raise ValueError(
+            "La variable d'environnement SQL_DATABASE est manquante."
+        )
+    return _build_engine(server, database)
 
 
 @st.cache_data(show_spinner=False)
