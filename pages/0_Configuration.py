@@ -8,6 +8,8 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from db_utils import get_engine_hist, get_engine_pred
 
+from input_utils import sanitize_input
+
 PLATFORM_PATTERN = r"_([A-Z]{2}_[0-9]{2})"
 
 
@@ -98,7 +100,9 @@ def main():
     platforms = sorted(
         set(hist_df["platform"].dropna()).union(set(pred_df["platform"].dropna()))
     )
-    platform = st.selectbox("Plateforme", platforms) if platforms else None
+    platform = (
+        sanitize_input(st.selectbox("Plateforme", platforms)) if platforms else None
+    )
 
     hist_tables = (
         hist_df[hist_df["platform"] == platform]["table_name"].tolist()
@@ -111,8 +115,16 @@ def main():
         else pred_df["table_name"].tolist()
     )
 
-    hist_table = st.selectbox("Table historique", hist_tables) if hist_tables else None
-    pred_table = st.selectbox("Table de prédiction", pred_tables) if pred_tables else None
+    hist_table = (
+        sanitize_input(st.selectbox("Table historique", hist_tables))
+        if hist_tables
+        else None
+    )
+    pred_table = (
+        sanitize_input(st.selectbox("Table de prédiction", pred_tables))
+        if pred_tables
+        else None
+    )
 
     if hist_table and pred_table:
         plat_hist = extract_platform(hist_table)

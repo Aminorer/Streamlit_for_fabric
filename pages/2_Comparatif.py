@@ -11,6 +11,8 @@ from db_utils import (
     get_engine_pred,
 )
 
+from input_utils import sanitize_input, sanitize_list
+
 
 def format_model_name(table_name: str) -> str:
     """Return a display friendly model name."""
@@ -276,7 +278,7 @@ def main():
     st.image("logo.png", width=150)
     st.title("Comparaison des modèles")
 
-    month = st.sidebar.radio("Mois", ["Mai", "Juin"], index=0)
+    month = sanitize_input(st.sidebar.radio("Mois", ["Mai", "Juin"], index=0))
 
     df_hist = load_hist_cached()
     tables = list_prediction_tables(month)
@@ -284,15 +286,23 @@ def main():
         st.error("Aucune table de prédictions trouvée.")
         return
 
-    selected_tables = st.sidebar.multiselect(
-        "Tables à comparer",
-        tables,
-        default=tables,
-        format_func=format_model_name,
+    selected_tables = sanitize_list(
+        st.sidebar.multiselect(
+            "Tables à comparer",
+            tables,
+            default=tables,
+            format_func=format_model_name,
+        )
     )
-    brands = st.sidebar.multiselect("Marques", sorted(df_hist["tyre_brand"].unique()))
-    seasons = st.sidebar.multiselect("Saisons", sorted(df_hist["tyre_season_french"].unique()))
-    sizes = st.sidebar.multiselect("Tailles", sorted(df_hist["tyre_fullsize"].unique()))
+    brands = sanitize_list(
+        st.sidebar.multiselect("Marques", sorted(df_hist["tyre_brand"].unique()))
+    )
+    seasons = sanitize_list(
+        st.sidebar.multiselect("Saisons", sorted(df_hist["tyre_season_french"].unique()))
+    )
+    sizes = sanitize_list(
+        st.sidebar.multiselect("Tailles", sorted(df_hist["tyre_fullsize"].unique()))
+    )
 
     if st.sidebar.button("Appliquer"):
         df_hist_f = filter_data(df_hist, brands, seasons, sizes)
