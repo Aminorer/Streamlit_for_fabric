@@ -331,6 +331,61 @@ def validate_table_consistency(hist_table: str, pred_table: str) -> bool:
     return True
 
 
+def _compose_select_clause(
+    engine: Engine, table_name: str, column_map: Dict[str, List[str]]
+) -> Tuple[str, List[str]]:
+    """Return a SELECT clause including only existing columns.
+
+    Parameters
+    ----------
+    engine : Engine
+        SQLAlchemy engine used to inspect the table.
+    table_name : str
+        Table to inspect.
+    column_map : Dict[str, List[str]]
+        Mapping of canonical column names to optional aliases. The first
+        matching alias found in the table will be selected and aliased to the
+        canonical name if necessary.
+
+    Returns
+    -------
+    Tuple[str, List[str]]
+        A tuple ``(select_clause, selected_columns)`` where ``select_clause``
+        is the comma-separated list to include in a ``SELECT`` statement and
+        ``selected_columns`` is the list of canonical columns actually
+        selected.
+    """
+
+    try:
+        inspector = inspect(engine)
+        cols_info = inspector.get_columns(table_name, schema="dbo")
+        existing = {c["name"].lower(): c["name"] for c in cols_info}
+    except (NoInspectionAvailable, SQLAlchemyError) as e:
+        logger.warning(
+            "Could not inspect columns for %s: %s", table_name, e
+        )
+        existing = {col.lower(): col for col in column_map}
+
+    select_parts: List[str] = []
+    selected: List[str] = []
+    for canonical, aliases in column_map.items():
+        candidates = [canonical] + [a for a in aliases]
+        candidates = [c.lower() for c in candidates]
+        found = None
+        for cand in candidates:
+            if cand in existing:
+                found = existing[cand]
+                break
+        if found is not None:
+            if found != canonical:
+                select_parts.append(f"{found} AS {canonical}")
+            else:
+                select_parts.append(canonical)
+            selected.append(canonical)
+
+    return ", ".join(select_parts), selected
+
+
 @st.cache_data(show_spinner=False)
 def load_hist_data(
     brands: Optional[List[str]] = None,
@@ -350,10 +405,17 @@ def load_hist_data(
     validate_table_name(table_name)
     engine = get_engine_hist()
     validate_table_name(table_name, engine)
-    query = (
-        "SELECT date_key, tyre_brand, tyre_season_french, tyre_fullsize, "
-        f"Sum_stock_quantity, Avg_supplier_price_eur FROM dbo.{table_name} WHERE 1=1"
-    )
+
+    col_map = {
+        "date_key": [],
+        "tyre_brand": [],
+        "tyre_season_french": [],
+        "tyre_fullsize": [],
+        "Sum_stock_quantity": ["sum_stock_quantity"],
+        "Avg_supplier_price_eur": ["avg_supplier_price_eur"],
+    }
+    select_clause, _ = _compose_select_clause(engine, table_name, col_map)
+    query = f"SELECT {select_clause} FROM dbo.{table_name} WHERE 1=1"
     params: Dict[str, object] = {}
     if brands:
         placeholders = ",".join([f":brand{i}" for i in range(len(brands))])
@@ -378,7 +440,8 @@ def load_hist_data(
             df = pd.read_sql(query, engine, params=params)
         else:
             df = pd.read_sql(query, engine)
-        df["date_key"] = pd.to_datetime(df["date_key"])
+        if "date_key" in df:
+            df["date_key"] = pd.to_datetime(df["date_key"])
         return df
     except SQLAlchemyError as e:
         logger.error("Erreur lors du chargement des données historiques: %s", e)
@@ -411,18 +474,39 @@ def load_prediction_data(
         raise ValueError(f"Table '{table_name}' does not exist.")
     engine = get_engine_pred()
     validate_table_name(table_name, engine)
-    query = (
-        "SELECT date_key, tyre_fullsize, tyre_brand, tyre_season_french, "
-        "stock_prediction, price_prediction, ic_price_plus, ic_price_minus, "
-        "ic_stock_plus, ic_stock_minus, prediction_confidence, stock_status, "
-        "volatility_status, main_rupture_date, order_recommendation, "
-        "tension_days, recommended_volume, optimal_order_date, "
-        "last_safe_order_date, margin_opportunity_days, criticality_score, "
-        "risk_level, stability_index, anomaly_alert, seasonal_factor, "
-        "supply_chain_alert, volatility_type, procurement_urgency, "
-        "price_jump_alert "
-        f"FROM dbo.{table_name} WHERE 1=1"
-    )
+    col_map = {
+        "date_key": [],
+        "tyre_fullsize": [],
+        "tyre_brand": [],
+        "tyre_season_french": [],
+        "stock_prediction": [],
+        "price_prediction": [],
+        "ic_price_plus": [],
+        "ic_price_minus": [],
+        "ic_stock_plus": [],
+        "ic_stock_minus": [],
+        "prediction_confidence": [],
+        "stock_status": [],
+        "volatility_status": [],
+        "main_rupture_date": [],
+        "order_recommendation": [],
+        "tension_days": [],
+        "recommended_volume": [],
+        "optimal_order_date": [],
+        "last_safe_order_date": [],
+        "margin_opportunity_days": [],
+        "criticality_score": [],
+        "risk_level": [],
+        "stability_index": [],
+        "anomaly_alert": [],
+        "seasonal_factor": [],
+        "supply_chain_alert": [],
+        "volatility_type": [],
+        "procurement_urgency": [],
+        "price_jump_alert": [],
+    }
+    select_clause, _ = _compose_select_clause(engine, table_name, col_map)
+    query = f"SELECT {select_clause} FROM dbo.{table_name} WHERE 1=1"
     params: Dict[str, object] = {}
     if brands:
         placeholders = ",".join([f":brand{i}" for i in range(len(brands))])
@@ -448,7 +532,8 @@ def load_prediction_data(
             df = pd.read_sql(query, engine, params=params)
         else:
             df = pd.read_sql(query, engine)
-        df["date_key"] = pd.to_datetime(df["date_key"])
+        if "date_key" in df:
+            df["date_key"] = pd.to_datetime(df["date_key"])
         for col in ["main_rupture_date", "optimal_order_date", "last_safe_order_date"]:
             if col in df:
                 df[col] = pd.to_datetime(df[col])

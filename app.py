@@ -38,10 +38,20 @@ st.title("Tableau de bord exécutif")
 if df.empty:
     st.warning("Aucune donnée disponible.")
 else:
-    status_counts = df["stock_status"].value_counts()
+    status_counts = (
+        df["stock_status"].value_counts() if "stock_status" in df else pd.Series()
+    )
     critical_items = int(status_counts.get("CRITIQUE", 0))
-    next_rupture = pd.to_datetime(df["main_rupture_date"]).min()
-    avg_criticality = float(df["criticality_score"].mean())
+    next_rupture = (
+        pd.to_datetime(df["main_rupture_date"]).min()
+        if "main_rupture_date" in df
+        else pd.NaT
+    )
+    avg_criticality = (
+        float(df["criticality_score"].mean())
+        if "criticality_score" in df
+        else float("nan")
+    )
 
     kpi1, kpi2, kpi3 = st.columns(3)
     kpi1.metric("Articles critiques", f"{critical_items}")
@@ -49,18 +59,22 @@ else:
         "Prochaine rupture",
         next_rupture.strftime("%Y-%m-%d") if pd.notna(next_rupture) else "N/A",
     )
-    kpi3.metric("Criticité moyenne", f"{avg_criticality:.2f}")
-
-    status_df = status_counts.reset_index()
-    status_df.columns = ["stock_status", "count"]
-    fig_status = px.bar(
-        status_df,
-        x="stock_status",
-        y="count",
-        title="Répartition par statut de stock",
-        color_discrete_sequence=ASSOCIATED_COLORS,
+    kpi3.metric(
+        "Criticité moyenne",
+        f"{avg_criticality:.2f}" if not pd.isna(avg_criticality) else "N/A",
     )
-    st.plotly_chart(fig_status, use_container_width=True)
+
+    if not status_counts.empty:
+        status_df = status_counts.reset_index()
+        status_df.columns = ["stock_status", "count"]
+        fig_status = px.bar(
+            status_df,
+            x="stock_status",
+            y="count",
+            title="Répartition par statut de stock",
+            color_discrete_sequence=ASSOCIATED_COLORS,
+        )
+        st.plotly_chart(fig_status, use_container_width=True)
 
     display_dataframe(df.head())
 
