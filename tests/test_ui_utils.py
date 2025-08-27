@@ -3,10 +3,14 @@ from pathlib import Path
 import types
 
 import streamlit as st
+import pandas as pd
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 import db_utils
-from ui_utils import setup_sidebar_filters
+from ui_utils import (
+    setup_sidebar_filters,
+    setup_prediction_comparison_filters,
+)
 
 
 def test_setup_sidebar_filters_discovers_platforms(monkeypatch):
@@ -34,3 +38,24 @@ def test_setup_sidebar_filters_discovers_platforms(monkeypatch):
     filters = setup_sidebar_filters()
     assert captured["platform_options"] == ["amz", "ebay"]
     assert filters["platform"] == "amz"
+
+
+def test_setup_prediction_comparison_filters(monkeypatch):
+    df = pd.DataFrame(
+        {
+            "tyre_brand": ["A"],
+            "tyre_season_french": ["Été"],
+            "tyre_fullsize": ["195"],
+        }
+    )
+
+    dummy_sidebar = types.SimpleNamespace(
+        date_input=lambda label, value=None: value,
+        multiselect=lambda label, options, default=None: default or [],
+    )
+    monkeypatch.setattr(st, "sidebar", dummy_sidebar)
+
+    filters = setup_prediction_comparison_filters(df)
+    assert filters["brands"] == ["A"]
+    assert filters["seasons"] == ["Été"]
+    assert filters["sizes"] == ["195"]
