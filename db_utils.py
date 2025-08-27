@@ -11,7 +11,7 @@ from sklearn.preprocessing import OneHotEncoder
 from sklearn.pipeline import Pipeline
 from sklearn.ensemble import RandomForestRegressor
 from dotenv import load_dotenv
-from typing import Callable, Optional, List, Dict, Tuple
+from typing import Any, Callable, Optional, List, Dict, Tuple
 
 load_dotenv("secret.env")
 
@@ -47,7 +47,9 @@ def validate_table_name(table: str, engine: Optional[Engine] = None) -> None:
         # Engine could be a mock object in tests; skip existence check.
         return
     except SQLAlchemyError as e:
-        logger.error("Erreur lors de l'inspection de la table %s: %s", table, e)
+        logger.exception(
+            "Erreur lors de l'inspection de la table %s", table
+        )
         raise ValueError(f"Table '{table}' does not exist.") from e
 
 
@@ -99,8 +101,8 @@ def _build_engine(server: str, database: str) -> Engine:
                 pass
             logger.info("SQL connection using %s succeeded", label)
             return engine
-        except SQLAlchemyError as e:
-            logger.warning("SQL connection using %s failed: %s", label, e)
+        except SQLAlchemyError:
+            logger.exception("SQL connection using %s failed", label)
 
     raise SQLAlchemyError("All SQL connection attempts failed.")
 
@@ -182,11 +184,11 @@ def find_hist_tables() -> List[str]:
     engine = get_engine_hist()
     try:
         return _classify_tables(engine, "Sum_stock_quantity")
-    except SQLAlchemyError as e:
-        logger.error(
-            "Erreur lors de la récupération des tables historiques: %s", e
+    except SQLAlchemyError:
+        logger.exception(
+            "Erreur lors de la récupération des tables historiques"
         )
-        return []
+        raise
 
 
 def find_pred_tables() -> List[str]:
@@ -194,11 +196,11 @@ def find_pred_tables() -> List[str]:
     engine = get_engine_pred()
     try:
         return _classify_tables(engine, "stock_prediction")
-    except SQLAlchemyError as e:
-        logger.error(
-            "Erreur lors de la récupération des tables de prédiction: %s", e
+    except SQLAlchemyError:
+        logger.exception(
+            "Erreur lors de la récupération des tables de prédiction"
         )
-        return []
+        raise
 
 
 @st.cache_data(show_spinner=False)
@@ -307,14 +309,13 @@ def validate_table_consistency(hist_table: str, pred_table: str) -> bool:
         pred_df = pd.read_sql(
             f"SELECT TOP 0 * FROM dbo.{pred_table}", get_engine_pred()
         )
-    except SQLAlchemyError as e:
-        logger.error(
-            "Erreur lors de la comparaison des tables %s et %s: %s",
+    except SQLAlchemyError:
+        logger.exception(
+            "Erreur lors de la comparaison des tables %s et %s",
             hist_table,
             pred_table,
-            e,
         )
-        return False
+        raise
 
     hist_cols = set(hist_df.columns)
     pred_cols = set(pred_df.columns)
@@ -360,10 +361,11 @@ def _compose_select_clause(
         inspector = inspect(engine)
         cols_info = inspector.get_columns(table_name, schema="dbo")
         existing = {c["name"].lower(): c["name"] for c in cols_info}
-    except (NoInspectionAvailable, SQLAlchemyError) as e:
-        logger.warning(
-            "Could not inspect columns for %s: %s", table_name, e
-        )
+    except NoInspectionAvailable as e:
+        logger.warning("Could not inspect columns for %s: %s", table_name, e)
+        existing = {col.lower(): col for col in column_map}
+    except SQLAlchemyError:
+        logger.exception("Could not inspect columns for %s", table_name)
         existing = {col.lower(): col for col in column_map}
 
     select_parts: List[str] = []
@@ -443,9 +445,11 @@ def load_hist_data(
         if "date_key" in df:
             df["date_key"] = pd.to_datetime(df["date_key"])
         return df
-    except SQLAlchemyError as e:
-        logger.error("Erreur lors du chargement des données historiques: %s", e)
-        return pd.DataFrame()
+    except SQLAlchemyError:
+        logger.exception(
+            "Erreur lors du chargement des données historiques"
+        )
+        raise
 
 
 @st.cache_data(show_spinner=False)
@@ -538,14 +542,71 @@ def load_prediction_data(
             if col in df:
                 df[col] = pd.to_datetime(df[col])
         return df
-    except SQLAlchemyError as e:
-        logger.error("Erreur lors du chargement des données de prédiction: %s", e)
-        return pd.DataFrame()
+    except SQLAlchemyError:
+        logger.exception(
+            "Erreur lors du chargement des données de prédiction"
+        )
+        raise
 
 
 def prediction_table_exists(table_name: str) -> bool:
     """Check if a prediction table already exists in the database."""
     return table_name in find_pred_tables()
+
+
+def run_diagnostics(engine: Optional[Engine] = None) -> Dict[str, Any]:
+    """Run connectivity and data checks on the target database.
+
+    The function attempts to connect, lists available tables with their
+    columns, and performs a small sample query on each table.
+
+    Parameters
+    ----------
+    engine : Optional[Engine]
+        Engine instance to use. If ``None`` a new engine is created via
+        :func:`get_engine`.
+
+    Returns
+    -------
+    Dict[str, Any]
+        Structured report containing connectivity status, table metadata,
+        sample rows, and any errors encountered.
+    """
+
+    report: Dict[str, Any] = {
+        "connected": False,
+        "tables": {},
+        "samples": {},
+        "errors": [],
+    }
+
+    try:
+        engine = engine or get_engine()
+        with engine.connect():
+            report["connected"] = True
+
+        inspector = inspect(engine)
+        schema = "dbo" if engine.dialect.name == "mssql" else None
+        tables = inspector.get_table_names(schema=schema)
+        for tbl in tables:
+            try:
+                cols = [
+                    col["name"] for col in inspector.get_columns(tbl, schema=schema)
+                ]
+                report["tables"][tbl] = cols
+                if engine.dialect.name == "mssql":
+                    query = f"SELECT TOP 5 * FROM {schema}.{tbl}" if schema else f"SELECT TOP 5 * FROM {tbl}"
+                else:
+                    query = f"SELECT * FROM {tbl} LIMIT 5"
+                report["samples"][tbl] = pd.read_sql(query, engine)
+            except SQLAlchemyError:
+                logger.exception("Sample query failed for table %s", tbl)
+                report["errors"].append(f"table {tbl}")
+    except SQLAlchemyError as e:
+        logger.exception("Diagnostics failed")
+        report["errors"].append(str(e))
+
+    return report
 
 
 def save_dataframe_to_table(df: pd.DataFrame, table_name: str) -> pd.DataFrame:
@@ -562,11 +623,11 @@ def save_dataframe_to_table(df: pd.DataFrame, table_name: str) -> pd.DataFrame:
             if_exists="replace",
         )
         return df
-    except SQLAlchemyError as e:
-        logger.error(
-            "Erreur lors de l'enregistrement de la table %s: %s", table_name, e
+    except SQLAlchemyError:
+        logger.exception(
+            "Erreur lors de l'enregistrement de la table %s", table_name
         )
-        return pd.DataFrame()
+        raise
 
 
 def generate_codex_predictions(
