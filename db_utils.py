@@ -106,29 +106,29 @@ def _build_engine(server: str, database: str) -> Engine:
 
 
 def get_engine_hist() -> Engine:
-    server = os.getenv("SQL_SERVER_HIST") or os.getenv("SQL_SERVER")
-    database = os.getenv("SQL_DATABASE_HIST") or os.getenv("SQL_DATABASE")
+    server = os.getenv("SQL_SERVER_HIST")
+    database = os.getenv("SQL_DATABASE_HIST")
     if server is None:
         raise ValueError(
-            "Les variables d'environnement SQL_SERVER_HIST ou SQL_SERVER sont manquantes."
+            "La variable d'environnement SQL_SERVER_HIST est manquante."
         )
     if database is None:
         raise ValueError(
-            "Les variables d'environnement SQL_DATABASE_HIST ou SQL_DATABASE sont manquantes."
+            "La variable d'environnement SQL_DATABASE_HIST est manquante."
         )
     return _build_engine(server, database)
 
 
 def get_engine_pred() -> Engine:
-    server = os.getenv("SQL_SERVER_PRED") or os.getenv("SQL_SERVER")
-    database = os.getenv("SQL_DATABASE_PRED") or os.getenv("SQL_DATABASE")
+    server = os.getenv("SQL_SERVER_PRED")
+    database = os.getenv("SQL_DATABASE_PRED")
     if server is None:
         raise ValueError(
-            "Les variables d'environnement SQL_SERVER_PRED ou SQL_SERVER sont manquantes."
+            "La variable d'environnement SQL_SERVER_PRED est manquante."
         )
     if database is None:
         raise ValueError(
-            "Les variables d'environnement SQL_DATABASE_PRED ou SQL_DATABASE sont manquantes."
+            "La variable d'environnement SQL_DATABASE_PRED est manquante."
         )
     return _build_engine(server, database)
 
