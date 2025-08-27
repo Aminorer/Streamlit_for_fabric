@@ -3,6 +3,8 @@ import streamlit as st
 import plotly.graph_objects as go
 import numpy as np
 
+from sqlalchemy import bindparam, text
+
 from db_utils import (
     load_hist_data,
     get_engine_pred,
@@ -30,6 +32,9 @@ def load_hist_cached():
     return load_hist_data()
 
 
+ALLOWED_TABLES = {}
+
+
 @st.cache_data
 def load_pred_cached(table_name):
     return load_prediction_data(table_name)
@@ -48,26 +53,44 @@ def filter_data(df, brands, seasons, sizes):
 def list_prediction_tables(month: str):
     engine = get_engine_pred()
     if month.lower() == "juin":
-        month_filter = "AND table_name LIKE '%_june%'"
+        stmt = text(
+            """
+            SELECT table_name FROM INFORMATION_SCHEMA.TABLES
+            WHERE table_schema = 'dbo'
+              AND table_name LIKE :pattern
+              AND table_name LIKE :month_pattern
+            """
+        ).bindparams(
+            bindparam("pattern", value="fullsize_stock_pred%"),
+            bindparam("month_pattern", value="%_june%"),
+        )
     else:
-        month_filter = "AND table_name NOT LIKE '%_june%'"
-    query = (
-        "SELECT table_name FROM INFORMATION_SCHEMA.TABLES "
-        "WHERE table_schema = 'dbo' "
-        "AND table_name LIKE 'fullsize_stock_pred%' "
-        f"{month_filter}"
-    )
-    df = pd.read_sql(query, engine)
-    return df["table_name"].tolist()
+        stmt = text(
+            """
+            SELECT table_name FROM INFORMATION_SCHEMA.TABLES
+            WHERE table_schema = 'dbo'
+              AND table_name LIKE :pattern
+              AND table_name NOT LIKE :month_pattern
+            """
+        ).bindparams(
+            bindparam("pattern", value="fullsize_stock_pred%"),
+            bindparam("month_pattern", value="%_june%"),
+        )
+    df = pd.read_sql(stmt, engine)
+    global ALLOWED_TABLES
+    ALLOWED_TABLES = {name: name for name in df["table_name"]}
+    return list(ALLOWED_TABLES.keys())
 
 
 def load_prediction_data(table_name):
+    if table_name not in ALLOWED_TABLES:
+        raise ValueError("Table non autorisée")
     engine = get_engine_pred()
-    query = (
-        f"SELECT date_key, tyre_brand, tyre_season_french, tyre_fullsize, "
-        f"stock_prediction, price_prediction FROM dbo.{table_name}"
+    stmt = text(
+        "SELECT date_key, tyre_brand, tyre_season_french, tyre_fullsize, "
+        "stock_prediction, price_prediction FROM dbo." + ALLOWED_TABLES[table_name]
     )
-    df = pd.read_sql(query, engine)
+    df = pd.read_sql(stmt, engine)
     df["date_key"] = pd.to_datetime(df["date_key"])
     return df
 

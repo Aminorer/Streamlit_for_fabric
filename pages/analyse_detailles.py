@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+from sqlalchemy import bindparam, text
 
 from db_utils import get_engine_pred, load_hist_data
 
@@ -19,22 +20,35 @@ def format_model_name(name: str) -> str:
     name = name.replace("_june", "").replace("_mai", "")
     return name.upper()
 
+ALLOWED_TABLES = {}
+
+
 @st.cache_data
 def list_prediction_tables():
     engine = get_engine_pred()
-    query = (
-        "SELECT table_name FROM INFORMATION_SCHEMA.TABLES "
-        "WHERE table_schema = 'dbo' "
-        "AND table_name LIKE 'fullsize_stock_pred%' "
-        "AND table_name LIKE '%_june%'"
+    stmt = text(
+        """
+        SELECT table_name FROM INFORMATION_SCHEMA.TABLES
+        WHERE table_schema = 'dbo'
+          AND table_name LIKE :pattern
+          AND table_name LIKE :include
+        """
+    ).bindparams(
+        bindparam("pattern", value="fullsize_stock_pred%"),
+        bindparam("include", value="%_june%"),
     )
-    df = pd.read_sql(query, engine)
-    return df["table_name"].tolist()
+    df = pd.read_sql(stmt, engine)
+    global ALLOWED_TABLES
+    ALLOWED_TABLES = {name: name for name in df["table_name"]}
+    return list(ALLOWED_TABLES.keys())
 
 @st.cache_data
 def load_prediction_data(table_name: str) -> pd.DataFrame:
+    if table_name not in ALLOWED_TABLES:
+        raise ValueError("Table non autorisée")
     engine = get_engine_pred()
-    df = pd.read_sql(f"SELECT * FROM dbo.{table_name}", engine)
+    stmt = text("SELECT * FROM dbo." + ALLOWED_TABLES[table_name])
+    df = pd.read_sql(stmt, engine)
     if "date_key" in df.columns:
         df["date_key"] = pd.to_datetime(df["date_key"], errors="coerce")
         df.dropna(subset=["date_key"], inplace=True)
