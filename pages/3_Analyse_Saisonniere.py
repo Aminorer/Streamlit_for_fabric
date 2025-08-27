@@ -2,7 +2,7 @@ import plotly.express as px
 import streamlit as st
 
 from constants import ASSOCIATED_COLORS
-from sample_data import load_sample_data
+from db_utils import load_hist_data
 from ui_utils import setup_sidebar_filters, display_dataframe
 
 
@@ -10,7 +10,7 @@ def main() -> None:
     st.set_page_config(page_title="Analyse saisonnière", layout="wide")
 
     progress = st.progress(0)
-    df = load_sample_data()
+    df = load_hist_data()
     progress.progress(100)
 
     _ = setup_sidebar_filters(df)
