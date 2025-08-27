@@ -9,7 +9,7 @@ from sklearn.preprocessing import OneHotEncoder
 from sklearn.pipeline import Pipeline
 from sklearn.ensemble import RandomForestRegressor
 from dotenv import load_dotenv
-from typing import Callable, Optional
+from typing import Callable, Optional, List
 
 load_dotenv("secret.env")
 
@@ -57,11 +57,52 @@ def get_engine() -> Engine:
     return _build_engine(database)
 
 
+def find_hist_tables() -> List[str]:
+    """Return historical table names matching the pattern fullsize_stock_hist_%."""
+    engine = get_engine_hist()
+    query = (
+        "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES "
+        "WHERE TABLE_SCHEMA = 'dbo' AND TABLE_NAME LIKE 'fullsize_stock_hist_%'"
+    )
+    try:
+        df = pd.read_sql(query, engine)
+        return df["TABLE_NAME"].tolist()
+    except SQLAlchemyError as e:
+        logger.error(
+            "Erreur lors de la récupération des tables historiques: %s", e
+        )
+        return []
+
+
+def find_pred_tables() -> List[str]:
+    """Return prediction table names matching the pattern pred_%."""
+    engine = get_engine_pred()
+    query = (
+        "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES "
+        "WHERE TABLE_SCHEMA = 'dbo' AND TABLE_NAME LIKE 'pred_%'"
+    )
+    try:
+        df = pd.read_sql(query, engine)
+        return df["TABLE_NAME"].tolist()
+    except SQLAlchemyError as e:
+        logger.error(
+            "Erreur lors de la récupération des tables de prédiction: %s", e
+        )
+        return []
+
+
 def load_hist_data():
+    tables = find_hist_tables()
+    if not tables:
+        logger.error(
+            "Aucune table historique trouvée correspondant au motif fullsize_stock_hist_%"
+        )
+        return pd.DataFrame()
+    table_name = tables[0]
     engine = get_engine_hist()
     query = (
         "SELECT date_key, tyre_brand, tyre_season_french, tyre_fullsize, "
-        "Sum_stock_quantity, Avg_supplier_price_eur FROM dbo.fullsize_stock_hist"
+        f"Sum_stock_quantity, Avg_supplier_price_eur FROM dbo.{table_name}"
     )
     try:
         df = pd.read_sql(query, engine)
@@ -74,17 +115,7 @@ def load_hist_data():
 
 def prediction_table_exists(table_name: str) -> bool:
     """Check if a prediction table already exists in the database."""
-    engine = get_engine_pred()
-    query = (
-        "SELECT 1 FROM INFORMATION_SCHEMA.TABLES "
-        "WHERE TABLE_SCHEMA = 'dbo' AND TABLE_NAME = ?"
-    )
-    try:
-        df = pd.read_sql(query, engine, params=[table_name])
-    except SQLAlchemyError as e:
-        logger.error("Erreur lors de la vérification de la table %s: %s", table_name, e)
-        return False
-    return not df.empty
+    return table_name in find_pred_tables()
 
 
 def save_dataframe_to_table(df: pd.DataFrame, table_name: str) -> pd.DataFrame:

@@ -14,6 +14,7 @@ def test_load_hist_data_returns_empty_on_error(monkeypatch, caplog):
         raise SQLAlchemyError("boom")
 
     monkeypatch.setattr(db_utils, "get_engine_hist", lambda: object())
+    monkeypatch.setattr(db_utils, "find_hist_tables", lambda: ["tbl"])
     monkeypatch.setattr(pd, "read_sql", fake_read_sql)
 
     with caplog.at_level("ERROR"):
@@ -35,3 +36,29 @@ def test_save_dataframe_to_table_handles_error(monkeypatch, caplog):
         result = db_utils.save_dataframe_to_table(df, "tbl")
     assert result.empty
     assert "Erreur lors de l'enregistrement de la table" in caplog.text
+
+
+def test_find_hist_tables_handles_error(monkeypatch, caplog):
+    def fake_read_sql(query, engine):
+        raise SQLAlchemyError("boom")
+
+    monkeypatch.setattr(db_utils, "get_engine_hist", lambda: object())
+    monkeypatch.setattr(pd, "read_sql", fake_read_sql)
+
+    with caplog.at_level("ERROR"):
+        tables = db_utils.find_hist_tables()
+    assert tables == []
+    assert "Erreur lors de la récupération des tables historiques" in caplog.text
+
+
+def test_find_pred_tables_handles_error(monkeypatch, caplog):
+    def fake_read_sql(query, engine):
+        raise SQLAlchemyError("boom")
+
+    monkeypatch.setattr(db_utils, "get_engine_pred", lambda: object())
+    monkeypatch.setattr(pd, "read_sql", fake_read_sql)
+
+    with caplog.at_level("ERROR"):
+        tables = db_utils.find_pred_tables()
+    assert tables == []
+    assert "Erreur lors de la récupération des tables de prédiction" in caplog.text
