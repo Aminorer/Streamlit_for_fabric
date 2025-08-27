@@ -1,14 +1,28 @@
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 import streamlit as st
+from typing import Tuple
 
 from constants import ASSOCIATED_COLORS
 from db_utils import (
     load_prediction_data,
     find_pred_tables,
     get_table_columns,
+    aggregate_predictions,
 )
 from ui_utils import setup_sidebar_filters, display_dataframe
+
+
+def hex_to_rgb(color: str) -> Tuple[int, int, int]:
+    """Convert HEX color to an RGB tuple."""
+    color = color.lstrip("#")
+    if len(color) != 6:
+        raise ValueError("Invalid HEX color")
+    r = int(color[0:2], 16)
+    g = int(color[2:4], 16)
+    b = int(color[4:6], 16)
+    return r, g, b
 
 
 def main() -> None:
@@ -79,9 +93,8 @@ def main() -> None:
         st.plotly_chart(crit_fig, use_container_width=True)
 
     if "stock_prediction" in df:
-        evol_df = (
-            df.groupby(["date_key", "tyre_brand"])["stock_prediction"].sum().reset_index()
-        )
+        show_confidence = st.checkbox("Afficher l'intervalle de confiance")
+        evol_df = aggregate_predictions(df, show_confidence=show_confidence)
         evol_fig = px.line(
             evol_df,
             x="date_key",
@@ -90,6 +103,31 @@ def main() -> None:
             title="Évolution des prédictions de stock par marque",
             color_discrete_sequence=ASSOCIATED_COLORS,
         )
+        if show_confidence and {"ic_stock_plus", "ic_stock_minus"}.issubset(evol_df.columns):
+            for idx, brand in enumerate(evol_df["tyre_brand"].unique()):
+                brand_df = evol_df[evol_df["tyre_brand"] == brand]
+                r, g, b = hex_to_rgb(ASSOCIATED_COLORS[idx % len(ASSOCIATED_COLORS)])
+                evol_fig.add_trace(
+                    go.Scatter(
+                        x=brand_df["date_key"],
+                        y=brand_df["ic_stock_plus"],
+                        mode="lines",
+                        line=dict(width=0),
+                        showlegend=False,
+                        hoverinfo="skip",
+                    )
+                )
+                evol_fig.add_trace(
+                    go.Scatter(
+                        x=brand_df["date_key"],
+                        y=brand_df["ic_stock_minus"],
+                        mode="lines",
+                        line=dict(width=0),
+                        fill="tonexty",
+                        fillcolor=f"rgba({r},{g},{b},0.2)",
+                        name=f"IC {brand}",
+                    )
+                )
         st.plotly_chart(evol_fig, use_container_width=True)
     else:
         st.info("Colonne 'stock_prediction' manquante.")

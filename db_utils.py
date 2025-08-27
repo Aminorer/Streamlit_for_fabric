@@ -654,6 +654,34 @@ def load_multi_week_predictions(
     return result
 
 
+def aggregate_predictions(df: pd.DataFrame, show_confidence: bool = False) -> pd.DataFrame:
+    """Aggregate prediction values per date and brand.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        DataFrame containing prediction data with at least ``date_key``,
+        ``tyre_brand`` and ``stock_prediction`` columns.
+    show_confidence : bool, default ``False``
+        Include ``ic_stock_plus`` and ``ic_stock_minus`` columns in the
+        aggregation if they are present in ``df`` and ``show_confidence`` is
+        ``True``.
+
+    Returns
+    -------
+    pandas.DataFrame
+        Aggregated DataFrame.
+    """
+
+    agg_dict = {"stock_prediction": "sum"}
+    if show_confidence and {"ic_stock_plus", "ic_stock_minus"}.issubset(df.columns):
+        agg_dict.update({"ic_stock_plus": "sum", "ic_stock_minus": "sum"})
+    return (
+        df.groupby(["date_key", "tyre_brand"], as_index=False)
+        .agg(agg_dict)
+    )
+
+
 def get_table_columns(table_name: str, engine: Optional[Engine] = None) -> List[str]:
     """Return the list of columns for the given table.
 

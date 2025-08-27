@@ -1,6 +1,7 @@
 import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
+from typing import Tuple
 
 from constants import ASSOCIATED_COLORS
 from db_utils import (
@@ -9,6 +10,17 @@ from db_utils import (
     get_table_columns,
 )
 from ui_utils import setup_sidebar_filters, display_dataframe
+
+
+def hex_to_rgb(color: str) -> Tuple[int, int, int]:
+    """Convert HEX color (e.g. ``"#ff00aa"``) to an RGB tuple."""
+    color = color.lstrip("#")
+    if len(color) != 6:
+        raise ValueError("Invalid HEX color")
+    r = int(color[0:2], 16)
+    g = int(color[2:4], 16)
+    b = int(color[4:6], 16)
+    return r, g, b
 
 
 def main() -> None:
@@ -68,6 +80,7 @@ def main() -> None:
         )
     )
     if "ic_price_plus" in price_df and "ic_price_minus" in price_df:
+        r, g, b = hex_to_rgb(ASSOCIATED_COLORS[0])
         fig.add_trace(
             go.Scatter(
                 x=price_df["date_key"],
@@ -85,7 +98,7 @@ def main() -> None:
                 mode="lines",
                 line=dict(width=0),
                 fill="tonexty",
-                fillcolor="rgba(127,191,220,0.2)",
+                fillcolor=f"rgba({r},{g},{b},0.2)",
                 name="Intervalle de confiance",
             )
         )
