@@ -10,11 +10,20 @@ from sklearn.preprocessing import OneHotEncoder
 from sklearn.pipeline import Pipeline
 from sklearn.ensemble import RandomForestRegressor
 from dotenv import load_dotenv
-from typing import Callable, Optional, List, Dict, Tuple
+from typing import Callable, Optional, List, Dict, Tuple, Set
 
 load_dotenv("secret.env")
 
 logger = logging.getLogger(__name__)
+
+# Whitelist of SQL tables allowed for queries
+ALLOWED_TABLES: Set[str] = set()
+
+
+def _assert_allowed_table(table: str) -> None:
+    """Raise ValueError if the given table name is not whitelisted."""
+    if table not in ALLOWED_TABLES:
+        raise ValueError(f"Table '{table}' is not allowed.")
 
 
 def _build_engine(database: str) -> Engine:
@@ -68,7 +77,8 @@ def find_hist_tables() -> List[str]:
     )
     try:
         df = pd.read_sql(query, engine)
-        return df["TABLE_NAME"].tolist()
+        tables = df["TABLE_NAME"].tolist()
+        return [t for t in tables if t in ALLOWED_TABLES]
     except SQLAlchemyError as e:
         logger.error(
             "Erreur lors de la récupération des tables historiques: %s", e
@@ -86,7 +96,8 @@ def find_pred_tables() -> List[str]:
     )
     try:
         df = pd.read_sql(query, engine)
-        return df["TABLE_NAME"].tolist()
+        tables = df["TABLE_NAME"].tolist()
+        return [t for t in tables if t in ALLOWED_TABLES]
     except SQLAlchemyError as e:
         logger.error(
             "Erreur lors de la récupération des tables de prédiction: %s", e
@@ -176,6 +187,9 @@ def validate_table_consistency(hist_table: str, pred_table: str) -> bool:
         ``True`` if tables are consistent, ``False`` otherwise.
     """
 
+    _assert_allowed_table(hist_table)
+    _assert_allowed_table(pred_table)
+
     hist_suffix = hist_table.replace("fullsize_stock_hist_", "").lower()
     pred_suffix = pred_table.replace("pred_", "").lower()
     if hist_suffix != pred_suffix:
@@ -233,6 +247,7 @@ def load_hist_data(
         )
         return pd.DataFrame()
     table_name = tables[0]
+    _assert_allowed_table(table_name)
     engine = get_engine_hist()
     query = (
         "SELECT date_key, tyre_brand, tyre_season_french, tyre_fullsize, "
@@ -276,6 +291,7 @@ def prediction_table_exists(table_name: str) -> bool:
 
 def save_dataframe_to_table(df: pd.DataFrame, table_name: str) -> pd.DataFrame:
     """Save a DataFrame to the specified SQL table."""
+    _assert_allowed_table(table_name)
     engine = get_engine_pred()
     try:
         df.to_sql(

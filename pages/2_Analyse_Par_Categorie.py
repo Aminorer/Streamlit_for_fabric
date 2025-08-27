@@ -2,6 +2,7 @@ import plotly.express as px
 import streamlit as st
 
 from constants import ASSOCIATED_COLORS
+from input_utils import sanitize_input
 from sample_data import load_sample_data
 from ui_utils import setup_sidebar_filters, display_dataframe
 
@@ -22,6 +23,7 @@ def main() -> None:
 
     categories = sorted(df["category"].unique())
     category = st.selectbox("Catégorie", categories)
+    category = sanitize_input(category)
     subset = df[df["category"] == category]
 
     total_stock = int(subset["stock_quantity"].sum())
