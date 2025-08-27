@@ -155,6 +155,17 @@ def test_load_prediction_data_filters(monkeypatch):
     assert isinstance(df.loc[0, "last_safe_order_date"], pd.Timestamp)
 
 
+def test_get_table_columns(monkeypatch):
+    class DummyInspector:
+        def get_columns(self, tbl, schema=None):
+            return [{"name": "c1"}, {"name": "c2"}]
+
+    monkeypatch.setattr(db_utils, "get_engine_pred", lambda: object())
+    monkeypatch.setattr(db_utils, "inspect", lambda engine: DummyInspector())
+
+    assert db_utils.get_table_columns("tbl") == ["c1", "c2"]
+
+
 if __name__ == "__main__":
     import pytest
     raise SystemExit(pytest.main([__file__]))

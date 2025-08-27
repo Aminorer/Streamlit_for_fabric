@@ -554,6 +554,36 @@ def prediction_table_exists(table_name: str) -> bool:
     return table_name in find_pred_tables()
 
 
+def get_table_columns(table_name: str, engine: Optional[Engine] = None) -> List[str]:
+    """Return the list of columns for the given table.
+
+    Parameters
+    ----------
+    table_name : str
+        Name of the table to inspect.
+    engine : Optional[Engine]
+        SQLAlchemy engine used for inspection. If ``None`` the prediction
+        database engine is used.
+
+    Returns
+    -------
+    List[str]
+        Names of columns present in the table.
+    """
+
+    validate_table_name(table_name)
+    engine = engine or get_engine_pred()
+    try:
+        inspector = inspect(engine)
+        cols_info = inspector.get_columns(table_name, schema="dbo")
+        return [c["name"] for c in cols_info]
+    except SQLAlchemyError:
+        logger.exception(
+            "Erreur lors de l'inspection de la table %s", table_name
+        )
+        raise
+
+
 def run_diagnostics(engine: Optional[Engine] = None) -> Dict[str, Any]:
     """Run connectivity and data checks on the target database.
 
