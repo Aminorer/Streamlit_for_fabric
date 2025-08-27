@@ -3,7 +3,7 @@ import os
 import re
 import pandas as pd
 import streamlit as st
-from sqlalchemy import create_engine, inspect
+from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import SQLAlchemyError, NoInspectionAvailable
 from sklearn.compose import ColumnTransformer
@@ -172,7 +172,7 @@ def _classify_tables(engine, marker_column: str) -> List[str]:
             "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS "
             "WHERE TABLE_SCHEMA = 'dbo' AND TABLE_NAME = :table"
         )
-        df_cols = pd.read_sql(col_query, engine, params={"table": tbl})
+        df_cols = pd.read_sql(text(col_query), engine, params={"table": tbl})
         cols = {c.lower() for c in df_cols["COLUMN_NAME"]}
         if marker_column.lower() in cols:
             matched.append(tbl)
