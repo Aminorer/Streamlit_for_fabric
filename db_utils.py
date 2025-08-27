@@ -1,5 +1,6 @@
 import logging
 import os
+import re
 import pandas as pd
 import streamlit as st
 from sqlalchemy import create_engine
@@ -10,31 +11,20 @@ from sklearn.preprocessing import OneHotEncoder
 from sklearn.pipeline import Pipeline
 from sklearn.ensemble import RandomForestRegressor
 from dotenv import load_dotenv
-from typing import Callable, Optional, List, Dict, Tuple, Set
+from typing import Callable, Optional, List, Dict, Tuple
 
 load_dotenv("secret.env")
 
 logger = logging.getLogger(__name__)
 
-# Whitelist of SQL tables allowed for queries
-ALLOWED_TABLES: Set[str] = set(
-    filter(None, os.getenv("ALLOWED_TABLES", "").split(","))
-)
 
-_EXPECTED_TABLES: Set[str] = set(
-    filter(None, os.getenv("EXPECTED_TABLES", "").split(","))
-)
-_missing = _EXPECTED_TABLES - ALLOWED_TABLES
-if _missing:
-    raise ValueError(
-        "Les tables attendues absentes de ALLOWED_TABLES: " + ", ".join(sorted(_missing))
-    )
+_TABLE_NAME_RE = re.compile(r"^[A-Za-z0-9_]+$")
 
 
-def _assert_allowed_table(table: str) -> None:
-    """Raise ValueError if the given table name is not whitelisted."""
-    if table not in ALLOWED_TABLES:
-        raise ValueError(f"Table '{table}' is not allowed.")
+def _validate_table_name(table: str) -> None:
+    """Ensure the table name only contains alphanumeric characters and underscores."""
+    if not _TABLE_NAME_RE.fullmatch(table):
+        raise ValueError(f"Invalid table name '{table}'.")
 
 
 def _build_engine(server: str, database: str) -> Engine:
@@ -113,7 +103,7 @@ def find_hist_tables() -> List[str]:
     try:
         df = pd.read_sql(query, engine)
         tables = df["TABLE_NAME"].tolist()
-        return [t for t in tables if t in ALLOWED_TABLES]
+        return tables
     except SQLAlchemyError as e:
         logger.error(
             "Erreur lors de la récupération des tables historiques: %s", e
@@ -132,7 +122,7 @@ def find_pred_tables() -> List[str]:
     try:
         df = pd.read_sql(query, engine)
         tables = df["TABLE_NAME"].tolist()
-        return [t for t in tables if t in ALLOWED_TABLES]
+        return tables
     except SQLAlchemyError as e:
         logger.error(
             "Erreur lors de la récupération des tables de prédiction: %s", e
@@ -222,8 +212,12 @@ def validate_table_consistency(hist_table: str, pred_table: str) -> bool:
         ``True`` if tables are consistent, ``False`` otherwise.
     """
 
-    _assert_allowed_table(hist_table)
-    _assert_allowed_table(pred_table)
+    _validate_table_name(hist_table)
+    _validate_table_name(pred_table)
+    if hist_table not in find_hist_tables():
+        raise ValueError(f"Table '{hist_table}' does not exist.")
+    if pred_table not in find_pred_tables():
+        raise ValueError(f"Table '{pred_table}' does not exist.")
 
     hist_suffix = hist_table.replace("fullsize_stock_hist_", "").lower()
     pred_suffix = pred_table.replace("pred_", "").lower()
@@ -282,7 +276,7 @@ def load_hist_data(
         )
         return pd.DataFrame()
     table_name = tables[0]
-    _assert_allowed_table(table_name)
+    _validate_table_name(table_name)
     engine = get_engine_hist()
     query = (
         "SELECT date_key, tyre_brand, tyre_season_french, tyre_fullsize, "
@@ -333,15 +327,16 @@ def load_prediction_data(
     Parameters
     ----------
     table_name : str
-        Name of the prediction table to query. Must be whitelisted in
-        ``ALLOWED_TABLES``.
+        Name of the prediction table to query.
     brands, seasons, sizes : Optional[List[str]]
         Filters applied on corresponding columns.
     start_date, end_date : Optional[pd.Timestamp]
         Date range filters applied on ``date_key``.
     """
 
-    _assert_allowed_table(table_name)
+    _validate_table_name(table_name)
+    if not prediction_table_exists(table_name):
+        raise ValueError(f"Table '{table_name}' does not exist.")
     engine = get_engine_pred()
     query = (
         "SELECT date_key, tyre_fullsize, tyre_brand, tyre_season_french, "
@@ -397,7 +392,7 @@ def prediction_table_exists(table_name: str) -> bool:
 
 def save_dataframe_to_table(df: pd.DataFrame, table_name: str) -> pd.DataFrame:
     """Save a DataFrame to the specified SQL table."""
-    _assert_allowed_table(table_name)
+    _validate_table_name(table_name)
     engine = get_engine_pred()
     try:
         df.to_sql(
