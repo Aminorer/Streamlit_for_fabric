@@ -38,13 +38,14 @@ Les tables de prédiction exposent notamment :
 
 Les informations de connexion sont fournies via des variables d'environnement (par exemple dans `secret.env`) :
 
-- `SQL_USER` – Nom d'utilisateur SQL.
-- `SQL_PASSWORD` – Mot de passe SQL.
-- `SQL_SERVER` – Adresse du serveur SQL.
-- `SQL_DRIVER` – Pilote ODBC à utiliser.
-- `SQL_DATABASE_HIST` – Base contenant les données historiques.
-- `SQL_DATABASE_PRED` – Base contenant les tables de prédiction.
-- `ALLOWED_TABLES` – Liste (séparée par des virgules) des tables autorisées.
+ - `SQL_USER` – Nom d'utilisateur SQL.
+ - `SQL_PASSWORD` – Mot de passe SQL.
+ - `SQL_DRIVER` – Pilote ODBC à utiliser.
+ - `SQL_SERVER_HIST` – Adresse du serveur hébergeant les données historiques.
+ - `SQL_DATABASE_HIST` – Base contenant les données historiques.
+ - `SQL_SERVER_PRED` – Adresse du serveur des tables de prédiction.
+ - `SQL_DATABASE_PRED` – Base contenant les tables de prédiction.
+ - `ALLOWED_TABLES` – Liste (séparée par des virgules) des tables autorisées.
   Elle doit inclure chaque table SQL qu'on souhaite interroger, sinon les fonctions de chargement refuseront la requête.
 
 Assurez-vous que ces variables sont définies avant de lancer l'application et que `ALLOWED_TABLES` contient bien la whiteliste des tables disponibles.
