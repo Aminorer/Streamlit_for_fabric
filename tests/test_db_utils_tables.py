@@ -1,6 +1,9 @@
 import sys
 from pathlib import Path
 
+import sys
+from pathlib import Path
+
 import pandas as pd
 import pytest
 from typing import Dict
@@ -52,7 +55,9 @@ def test_get_matching_tables(monkeypatch):
 def test_validate_table_consistency(monkeypatch, caplog):
     hist_table = "fullsize_stock_hist_amz_man"
     pred_table = "pred_amz_man"
-    monkeypatch.setattr(db_utils, "ALLOWED_TABLES", {hist_table, pred_table, "pred_ebay_man"})
+    mismatch_pred = "pred_ebay_man"
+    monkeypatch.setattr(db_utils, "find_hist_tables", lambda: [hist_table])
+    monkeypatch.setattr(db_utils, "find_pred_tables", lambda: [pred_table, mismatch_pred])
 
     def fake_read_sql(query, engine):
         if "fullsize_stock_hist" in query:
@@ -77,7 +82,6 @@ def test_validate_table_consistency(monkeypatch, caplog):
         assert not db_utils.validate_table_consistency(hist_table, bad_pred)
         assert "Incompatible schemas" in caplog.text
 
-    mismatch_pred = "pred_ebay_man"
     assert not db_utils.validate_table_consistency(hist_table, mismatch_pred)
 
 
@@ -123,7 +127,7 @@ def test_load_prediction_data_filters(monkeypatch):
 
     monkeypatch.setattr(db_utils, "get_engine_pred", lambda: object())
     monkeypatch.setattr(pd, "read_sql", fake_read_sql)
-    monkeypatch.setattr(db_utils, "ALLOWED_TABLES", {"tbl"})
+    monkeypatch.setattr(db_utils, "prediction_table_exists", lambda name: True)
 
     df = db_utils.load_prediction_data(
         "tbl",

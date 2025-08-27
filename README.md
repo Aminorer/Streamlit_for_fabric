@@ -5,7 +5,7 @@ Cette application Streamlit interagit avec des bases de données SQL pour affich
 ## Chargement des données
 
 Les jeux de données factices ont été supprimés. Toutes les informations sont désormais récupérées directement depuis la base via les fonctions `load_hist_data` et `load_prediction_data` du module `db_utils`.
-`load_hist_data` lit les volumes historiques tandis que `load_prediction_data` charge une table de prédictions whitelistée (`ALLOWED_TABLES`) et propose les mêmes filtres (marques, saisons, dimensions, dates).
+`load_hist_data` lit les volumes historiques tandis que `load_prediction_data` charge une table de prédictions en validant son nom et propose les mêmes filtres (marques, saisons, dimensions, dates).
 
 ```python
 from db_utils import load_hist_data, load_prediction_data
@@ -56,9 +56,6 @@ Un fichier d'exemple `secret.env.example` est disponible à la racine : copiez-
 - `SQL_DATABASE_HIST` – Base contenant les données historiques.
 - `SQL_SERVER_PRED` – Adresse du serveur des tables de prédiction.
 - `SQL_DATABASE_PRED` – Base contenant les tables de prédiction.
-- `ALLOWED_TABLES` – Liste des tables Delta à interroger, séparées par des virgules. Exemple : `pred_amz_man,pred_ebay_dis`. Chaque nom doit être séparé par une virgule, sinon les fonctions de chargement refuseront la requête.
-
-Assurez-vous que ces variables sont définies avant de lancer l'application et que `ALLOWED_TABLES` contient bien la whiteliste des tables disponibles.
 
 ### Conventions de nommage des tables
 
@@ -66,7 +63,7 @@ Les tables historiques suivent le motif `fullsize_stock_hist_%` et les tables de
 
 ### Création et alimentation des tables de test
 
-Pour le développement ou les tests locaux, créez une paire de tables historique/prédiction respectant les conventions ci-dessus et ajoutez-les à `ALLOWED_TABLES`. Exemple minimal :
+Pour le développement ou les tests locaux, créez une paire de tables historique/prédiction respectant les conventions ci-dessus. Exemple minimal :
 
 ```sql
 -- Table historique
