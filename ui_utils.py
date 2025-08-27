@@ -91,6 +91,64 @@ def setup_sidebar_filters(df: Optional[object] = None) -> Dict[str, Any]:
     }
 
 
+def setup_prediction_comparison_filters(
+    df: Optional[pd.DataFrame] = None,
+) -> Dict[str, Any]:
+    """Render sidebar filters for the comparative analysis page.
+
+    Parameters
+    ----------
+    df : Optional[pandas.DataFrame]
+        DataFrame used to populate brand, season and size options if
+        provided. Only the presence of relevant columns is checked.
+
+    Returns
+    -------
+    Dict[str, Any]
+        Dictionary containing the selected filter values including a
+        date range.
+    """
+
+    default_start = datetime.date.today() - datetime.timedelta(days=30)
+    default_end = datetime.date.today()
+    start_date, end_date = st.sidebar.date_input(
+        "Période", (default_start, default_end)
+    )
+
+    brand_options: List[str] = []
+    season_options: List[str] = []
+    size_options: List[str] = []
+
+    if df is not None:
+        if "tyre_brand" in df:
+            brand_options = sorted(df["tyre_brand"].dropna().unique().tolist())
+        if "tyre_season_french" in df:
+            season_options = sorted(
+                df["tyre_season_french"].dropna().unique().tolist()
+            )
+        if "tyre_fullsize" in df:
+            size_options = sorted(df["tyre_fullsize"].dropna().unique().tolist())
+
+    brands = st.sidebar.multiselect("Marques", brand_options, default=brand_options)
+    seasons = st.sidebar.multiselect("Saisons", season_options, default=season_options)
+    sizes = st.sidebar.multiselect("Tailles", size_options, default=size_options)
+
+    brands = sanitize_list(brands)
+    seasons = sanitize_list(seasons)
+    sizes = sanitize_list(sizes)
+
+    start_ts = pd.to_datetime(start_date)
+    end_ts = pd.to_datetime(end_date)
+
+    return {
+        "start_date": start_ts,
+        "end_date": end_ts,
+        "brands": brands,
+        "seasons": seasons,
+        "sizes": sizes,
+    }
+
+
 def display_dataframe(df: pd.DataFrame, rows_per_page: int = 1000) -> None:
     """Display a DataFrame with pagination when it exceeds 10k rows.
 
