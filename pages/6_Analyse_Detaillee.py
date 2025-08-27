@@ -3,14 +3,15 @@ import streamlit as st
 
 from constants import ASSOCIATED_COLORS
 from sample_data import load_sample_data
-from ui_utils import setup_sidebar_filters
+from ui_utils import setup_sidebar_filters, display_dataframe
 
 
 def main() -> None:
     st.set_page_config(page_title="Analyse détaillée", layout="wide")
 
-    with st.spinner("Chargement des données..."):
-        df = load_sample_data()
+    progress = st.progress(0)
+    df = load_sample_data()
+    progress.progress(100)
 
     _ = setup_sidebar_filters(df)
     st.title("Analyse détaillée")
@@ -43,7 +44,7 @@ def main() -> None:
     )
     st.plotly_chart(fig, use_container_width=True)
 
-    st.dataframe(df, use_container_width=True)
+    display_dataframe(df)
     csv = df.to_csv(index=False).encode("utf-8")
     st.download_button("Exporter CSV", csv, "analyse_detaillee.csv", "text/csv")
 
