@@ -116,18 +116,41 @@ def get_engine() -> Engine:
     return _build_engine(server, database)
 
 
-@st.cache_data(show_spinner=False)
-def find_hist_tables() -> List[str]:
-    """Return historical table names matching the pattern fullsize_stock_hist_%."""
-    engine = get_engine_hist()
-    query = (
+def _classify_tables(engine, marker_column: str) -> List[str]:
+    """Return table names containing ``marker_column``.
+
+    Parameters
+    ----------
+    engine:
+        SQLAlchemy engine connected to the target database.
+    marker_column:
+        Column name whose presence identifies the table type.
+    """
+
+    table_query = (
         "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES "
-        "WHERE TABLE_SCHEMA = 'dbo' AND TABLE_NAME LIKE 'fullsize_stock_hist_%'"
+        "WHERE TABLE_SCHEMA = 'dbo'"
     )
+    df_tables = pd.read_sql(table_query, engine)
+    tables = df_tables["TABLE_NAME"].tolist()
+    matched: List[str] = []
+    for tbl in tables:
+        col_query = (
+            "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS "
+            "WHERE TABLE_SCHEMA = 'dbo' AND TABLE_NAME = :table"
+        )
+        df_cols = pd.read_sql(col_query, engine, params={"table": tbl})
+        cols = {c.lower() for c in df_cols["COLUMN_NAME"]}
+        if marker_column.lower() in cols:
+            matched.append(tbl)
+    return matched
+
+
+def find_hist_tables() -> List[str]:
+    """Return historical table names identified by ``Sum_stock_quantity`` column."""
+    engine = get_engine_hist()
     try:
-        df = pd.read_sql(query, engine)
-        tables = df["TABLE_NAME"].tolist()
-        return tables
+        return _classify_tables(engine, "Sum_stock_quantity")
     except SQLAlchemyError as e:
         logger.error(
             "Erreur lors de la récupération des tables historiques: %s", e
@@ -135,18 +158,11 @@ def find_hist_tables() -> List[str]:
         return []
 
 
-@st.cache_data(show_spinner=False)
 def find_pred_tables() -> List[str]:
-    """Return prediction table names matching the pattern pred_%."""
+    """Return prediction table names identified by ``stock_prediction`` column."""
     engine = get_engine_pred()
-    query = (
-        "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES "
-        "WHERE TABLE_SCHEMA = 'dbo' AND TABLE_NAME LIKE 'pred_%'"
-    )
     try:
-        df = pd.read_sql(query, engine)
-        tables = df["TABLE_NAME"].tolist()
-        return tables
+        return _classify_tables(engine, "stock_prediction")
     except SQLAlchemyError as e:
         logger.error(
             "Erreur lors de la récupération des tables de prédiction: %s", e
