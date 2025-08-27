@@ -17,7 +17,18 @@ load_dotenv("secret.env")
 logger = logging.getLogger(__name__)
 
 # Whitelist of SQL tables allowed for queries
-ALLOWED_TABLES: Set[str] = set()
+ALLOWED_TABLES: Set[str] = set(
+    filter(None, os.getenv("ALLOWED_TABLES", "").split(","))
+)
+
+_EXPECTED_TABLES: Set[str] = set(
+    filter(None, os.getenv("EXPECTED_TABLES", "").split(","))
+)
+_missing = _EXPECTED_TABLES - ALLOWED_TABLES
+if _missing:
+    raise ValueError(
+        "Les tables attendues absentes de ALLOWED_TABLES: " + ", ".join(sorted(_missing))
+    )
 
 
 def _assert_allowed_table(table: str) -> None:

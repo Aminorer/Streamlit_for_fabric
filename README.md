@@ -45,7 +45,8 @@ Les informations de connexion sont fournies via des variables d'environnement (p
  - `SQL_DATABASE_HIST` – Base contenant les données historiques.
  - `SQL_SERVER_PRED` – Adresse du serveur des tables de prédiction.
  - `SQL_DATABASE_PRED` – Base contenant les tables de prédiction.
- - `ALLOWED_TABLES` – Liste (séparée par des virgules) des tables autorisées.
-  Elle doit inclure chaque table SQL qu'on souhaite interroger, sinon les fonctions de chargement refuseront la requête.
+ - `ALLOWED_TABLES` – Liste des tables autorisées séparées par des virgules.
+   Exemple : `pred_amz_man,pred_ebay_dis`. Chaque nom doit être séparé par une virgule,
+   sinon les fonctions de chargement refuseront la requête.
 
 Assurez-vous que ces variables sont définies avant de lancer l'application et que `ALLOWED_TABLES` contient bien la whiteliste des tables disponibles.
