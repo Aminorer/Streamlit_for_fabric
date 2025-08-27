@@ -37,3 +37,15 @@ def test_run_diagnostics_handles_query_error(monkeypatch):
     report = db_utils.run_diagnostics(engine)
     assert report["connected"] is True
     assert report["errors"]
+
+
+def test_run_diagnostics_handles_connection_error(monkeypatch):
+    class FailingEngine:
+        def connect(self):
+            raise SQLAlchemyError("boom")
+
+        dialect = type("d", (), {"name": "sqlite"})()
+
+    report = db_utils.run_diagnostics(FailingEngine())
+    assert report["connected"] is False
+    assert report["errors"]
