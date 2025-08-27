@@ -3,6 +3,8 @@ from pathlib import Path
 
 import pandas as pd
 import pytest
+from sqlalchemy.exc import ProgrammingError
+from sqlalchemy.sql.elements import TextClause
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 import db_utils
@@ -10,9 +12,9 @@ import db_utils
 
 def test_find_tables_via_columns(monkeypatch):
     def fake_read_sql(query, engine, params=None):
-        if "INFORMATION_SCHEMA.TABLES" in query:
+        if "INFORMATION_SCHEMA.TABLES" in str(query):
             return pd.DataFrame({"TABLE_NAME": ["hist_tbl", "pred_tbl", "other_tbl"]})
-        elif "INFORMATION_SCHEMA.COLUMNS" in query:
+        elif "INFORMATION_SCHEMA.COLUMNS" in str(query):
             table = params["table"]
             if table == "hist_tbl":
                 return pd.DataFrame({"COLUMN_NAME": ["Sum_stock_quantity", "foo"]})
@@ -31,9 +33,9 @@ def test_find_tables_via_columns(monkeypatch):
 
 def test_find_tables_case_insensitive(monkeypatch):
     def fake_read_sql(query, engine, params=None):
-        if "INFORMATION_SCHEMA.TABLES" in query:
+        if "INFORMATION_SCHEMA.TABLES" in str(query):
             return pd.DataFrame({"TABLE_NAME": ["hist_tbl", "pred_tbl"]})
-        elif "INFORMATION_SCHEMA.COLUMNS" in query:
+        elif "INFORMATION_SCHEMA.COLUMNS" in str(query):
             table = params["table"]
             if table == "hist_tbl":
                 return pd.DataFrame({"COLUMN_NAME": ["SUM_stock_QUANTITY"]})
@@ -47,3 +49,23 @@ def test_find_tables_case_insensitive(monkeypatch):
 
     assert db_utils.find_hist_tables() == ["hist_tbl"]
     assert db_utils.find_pred_tables() == ["pred_tbl"]
+
+
+def test_classify_tables_handles_named_parameter(monkeypatch):
+    """Ensure parameterized queries do not raise ``ProgrammingError``."""
+
+    def fake_read_sql(query, engine, params=None):
+        # First call retrieves table names.
+        if "INFORMATION_SCHEMA.TABLES" in str(query):
+            return pd.DataFrame({"TABLE_NAME": ["hist_tbl"]})
+        # Second call should use a TextClause to allow ":table" parameter.
+        if "INFORMATION_SCHEMA.COLUMNS" in str(query):
+            if not isinstance(query, TextClause):
+                raise ProgrammingError("parameter error", None, None)
+            assert params == {"table": "hist_tbl"}
+            return pd.DataFrame({"COLUMN_NAME": ["Sum_stock_quantity"]})
+        raise AssertionError("Unexpected query")
+
+    monkeypatch.setattr(pd, "read_sql", fake_read_sql)
+
+    assert db_utils._classify_tables(object(), "Sum_stock_quantity") == ["hist_tbl"]
