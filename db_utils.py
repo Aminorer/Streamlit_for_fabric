@@ -13,11 +13,10 @@ from typing import Callable, Optional
 load_dotenv("secret.env")
 
 
-def get_engine():
+def _build_engine(database: str) -> Engine:
     user = os.getenv("SQL_USER")
     password = os.getenv("SQL_PASSWORD")
     server = os.getenv("SQL_SERVER")
-    database = os.getenv("SQL_DATABASE")
     driver = os.getenv("SQL_DRIVER")
 
     if driver is None:
@@ -34,8 +33,29 @@ def get_engine():
     return create_engine(connection_string)
 
 
+def get_engine_hist() -> Engine:
+    database = os.getenv("SQL_DATABASE_HIST")
+    if database is None:
+        raise ValueError("La variable d'environnement SQL_DATABASE_HIST est manquante.")
+    return _build_engine(database)
+
+
+def get_engine_pred() -> Engine:
+    database = os.getenv("SQL_DATABASE_PRED")
+    if database is None:
+        raise ValueError("La variable d'environnement SQL_DATABASE_PRED est manquante.")
+    return _build_engine(database)
+
+
+def get_engine() -> Engine:
+    database = os.getenv("SQL_DATABASE")
+    if database is None:
+        raise ValueError("La variable d'environnement SQL_DATABASE est manquante.")
+    return _build_engine(database)
+
+
 def load_hist_data():
-    engine = get_engine()
+    engine = get_engine_hist()
     query = (
         "SELECT date_key, tyre_brand, tyre_season_french, tyre_fullsize, "
         "Sum_stock_quantity, Avg_supplier_price_eur FROM dbo.fullsize_stock_hist"
@@ -47,7 +67,7 @@ def load_hist_data():
 
 def prediction_table_exists(table_name: str) -> bool:
     """Check if a prediction table already exists in the database."""
-    engine = get_engine()
+    engine = get_engine_pred()
     query = (
         "SELECT 1 FROM INFORMATION_SCHEMA.TABLES "
         "WHERE TABLE_SCHEMA = 'dbo' AND TABLE_NAME = ?"
@@ -61,7 +81,7 @@ def prediction_table_exists(table_name: str) -> bool:
 
 def save_dataframe_to_table(df: pd.DataFrame, table_name: str) -> None:
     """Save a DataFrame to the specified SQL table."""
-    engine = get_engine()
+    engine = get_engine_pred()
     df.to_sql(table_name, con=engine, schema="dbo", index=False, if_exists="replace")
 
 
