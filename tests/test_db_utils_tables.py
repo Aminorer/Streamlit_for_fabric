@@ -51,6 +51,7 @@ def test_get_matching_tables(monkeypatch):
 def test_validate_table_consistency(monkeypatch, caplog):
     hist_table = "fullsize_stock_hist_amz_man"
     pred_table = "pred_amz_man"
+    monkeypatch.setattr(db_utils, "ALLOWED_TABLES", {hist_table, pred_table, "pred_ebay_man"})
 
     def fake_read_sql(query, engine):
         if "fullsize_stock_hist" in query:

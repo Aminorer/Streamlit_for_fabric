@@ -15,6 +15,7 @@ def test_load_hist_data_returns_empty_on_error(monkeypatch, caplog):
 
     monkeypatch.setattr(db_utils, "get_engine_hist", lambda: object())
     monkeypatch.setattr(db_utils, "find_hist_tables", lambda: ["tbl"])
+    monkeypatch.setattr(db_utils, "ALLOWED_TABLES", {"tbl"})
     monkeypatch.setattr(pd, "read_sql", fake_read_sql)
 
     with caplog.at_level("ERROR"):
@@ -31,6 +32,7 @@ def test_save_dataframe_to_table_handles_error(monkeypatch, caplog):
 
     monkeypatch.setattr(db_utils, "get_engine_pred", lambda: object())
     monkeypatch.setattr(pd.DataFrame, "to_sql", fake_to_sql)
+    monkeypatch.setattr(db_utils, "ALLOWED_TABLES", {"tbl"})
 
     with caplog.at_level("ERROR"):
         result = db_utils.save_dataframe_to_table(df, "tbl")

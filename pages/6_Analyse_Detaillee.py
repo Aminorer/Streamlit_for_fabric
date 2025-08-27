@@ -2,6 +2,7 @@ import plotly.express as px
 import streamlit as st
 
 from constants import ASSOCIATED_COLORS
+from input_utils import sanitize_input
 from sample_data import load_sample_data
 from ui_utils import setup_sidebar_filters, display_dataframe
 
@@ -22,6 +23,7 @@ def main() -> None:
 
     statuses = ["TOUS"] + sorted(df["stock_status"].unique())
     status = st.selectbox("Statut", statuses)
+    status = sanitize_input(status)
     if status != "TOUS":
         df = df[df["stock_status"] == status]
 

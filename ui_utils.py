@@ -6,6 +6,7 @@ import pandas as pd
 import streamlit as st
 
 import db_utils
+from input_utils import sanitize_input, sanitize_list
 
 
 def _discover_platforms() -> List[str]:
@@ -46,8 +47,10 @@ def setup_sidebar_filters(df: Optional[object] = None) -> Dict[str, Any]:
         if platforms
         else st.sidebar.text_input("Plateforme", "")
     )
+    platform = sanitize_input(platform) if platform else ""
 
     activity_type = st.sidebar.radio("Type d'activité", ["Historique", "Prédiction"])
+    activity_type = sanitize_input(activity_type)
     date = st.sidebar.date_input("Date", datetime.date.today())
 
     brand_options: List[str] = []
@@ -72,6 +75,11 @@ def setup_sidebar_filters(df: Optional[object] = None) -> Dict[str, Any]:
     brands = st.sidebar.multiselect("Marques", brand_options, default=brand_options)
     seasons = st.sidebar.multiselect("Saisons", season_options, default=season_options)
     sizes = st.sidebar.multiselect("Tailles", size_options, default=size_options)
+
+    # Sanitize list selections
+    brands = sanitize_list(brands)
+    seasons = sanitize_list(seasons)
+    sizes = sanitize_list(sizes)
 
     return {
         "platform": platform,
