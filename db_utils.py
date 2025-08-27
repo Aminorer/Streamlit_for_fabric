@@ -238,6 +238,46 @@ def discover_platforms() -> Dict[str, List[str]]:
 
 
 @st.cache_data(show_spinner=False)
+def discover_prediction_weeks(platform: str) -> List[str]:
+    """Return available week labels for prediction tables of a platform.
+
+    Table names are expected to follow the pattern
+    ``pred_<platform>_<activity>_<YYYYMMDD>`` where the date corresponds to
+    the start of the prediction week. The returned labels are formatted as
+    ``DD/MM/YYYY - Semaine X`` where ``X`` is the ISO week number.
+
+    Parameters
+    ----------
+    platform : str
+        Platform identifier (e.g. ``amz``).
+
+    Returns
+    -------
+    List[str]
+        Sorted list of unique week labels available for the platform.
+    """
+
+    tables = find_pred_tables()
+    prefix = f"pred_{platform.lower()}_"
+    weeks: Dict[pd.Timestamp, str] = {}
+    for tbl in tables:
+        if not tbl.lower().startswith(prefix):
+            continue
+        parts = tbl.split("_")
+        if len(parts) < 4:
+            continue
+        date_part = parts[-1]
+        try:
+            date = pd.to_datetime(date_part, format="%Y%m%d", errors="raise")
+        except ValueError:
+            continue
+        week_label = f"{date.strftime('%d/%m/%Y')} - Semaine {date.isocalendar().week}"
+        weeks[date] = week_label
+
+    return [weeks[d] for d in sorted(weeks)]
+
+
+@st.cache_data(show_spinner=False)
 def get_matching_tables(platform: str, activity_type: str) -> Tuple[Optional[str], Optional[str]]:
     """Return historical and prediction table names for the given platform.
 
@@ -552,6 +592,66 @@ def load_prediction_data(
 def prediction_table_exists(table_name: str) -> bool:
     """Check if a prediction table already exists in the database."""
     return table_name in find_pred_tables()
+
+
+def load_multi_week_predictions(
+    platform: str,
+    activity_type: str,
+    selected_weeks: List[str],
+    filters: Dict[str, Optional[Any]],
+) -> Dict[str, pd.DataFrame]:
+    """Load prediction data for multiple weeks.
+
+    Parameters
+    ----------
+    platform : str
+        Platform identifier (e.g. ``amz``).
+    activity_type : str
+        Activity type identifier (e.g. ``man``).
+    selected_weeks : List[str]
+        Week labels as returned by :func:`discover_prediction_weeks`.
+    filters : Dict[str, Optional[Any]]
+        Mapping containing optional filter lists for ``brands``, ``seasons`` and
+        ``sizes`` as well as ``start_date`` and ``end_date`` timestamps.
+
+    Returns
+    -------
+    Dict[str, pd.DataFrame]
+        Mapping of week label to the loaded DataFrame.
+    """
+
+    tables = find_pred_tables()
+    prefix = f"pred_{platform.lower()}_{activity_type.lower()}_"
+    week_to_table: Dict[str, str] = {}
+    for tbl in tables:
+        if not tbl.lower().startswith(prefix):
+            continue
+        parts = tbl.split("_")
+        if len(parts) < 4:
+            continue
+        date_part = parts[-1]
+        try:
+            date = pd.to_datetime(date_part, format="%Y%m%d", errors="raise")
+        except ValueError:
+            continue
+        label = f"{date.strftime('%d/%m/%Y')} - Semaine {date.isocalendar().week}"
+        week_to_table[label] = tbl
+
+    result: Dict[str, pd.DataFrame] = {}
+    for week in selected_weeks:
+        table = week_to_table.get(week)
+        if table is None:
+            continue
+        df = load_prediction_data(
+            table,
+            brands=filters.get("brands"),
+            seasons=filters.get("seasons"),
+            sizes=filters.get("sizes"),
+            start_date=filters.get("start_date"),
+            end_date=filters.get("end_date"),
+        )
+        result[week] = df
+    return result
 
 
 def get_table_columns(table_name: str, engine: Optional[Engine] = None) -> List[str]:
