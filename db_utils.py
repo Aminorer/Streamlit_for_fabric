@@ -52,7 +52,11 @@ def validate_table_name(table: str, engine: Optional[Engine] = None) -> None:
 
 
 def _build_engine(server: str, database: str) -> Engine:
-    """Create a SQLAlchemy engine for the given server and database."""
+    """Create a SQLAlchemy engine for the given server and database.
+
+    Multiple authentication methods are attempted in a specific order. The
+    first successful connection is returned.
+    """
 
     user = os.getenv("SQL_USER")
     password = os.getenv("SQL_PASSWORD")
@@ -64,14 +68,41 @@ def _build_engine(server: str, database: str) -> Engine:
         )
     driver = driver.replace(" ", "+")
 
-    connection_string = (
+    base_connection_string = (
         f"mssql+pyodbc://{user}:{password}@{server}:1433/{database}"
         f"?driver={driver}"
-        "&authentication=ActiveDirectoryPassword"
         "&encrypt=yes"
         "&TrustServerCertificate=no"
+        "&Connect Timeout=30"
     )
-    return create_engine(connection_string)
+
+    auth_methods = [
+        ("", "no authentication parameter"),
+        ("&authentication=ActiveDirectoryInteractive", "ActiveDirectoryInteractive"),
+        ("&authentication=ActiveDirectoryIntegrated", "ActiveDirectoryIntegrated"),
+        ("&authentication=ActiveDirectoryPassword", "ActiveDirectoryPassword"),
+    ]
+
+    engine_kwargs = {
+        "connect_args": {"timeout": 30},
+        "pool_pre_ping": True,
+        "pool_size": 5,
+        "max_overflow": 10,
+    }
+
+    for suffix, label in auth_methods:
+        connection_string = base_connection_string + suffix
+        logger.info("Attempting SQL connection using %s", label)
+        try:
+            engine = create_engine(connection_string, **engine_kwargs)
+            with engine.connect() as conn:
+                pass
+            logger.info("SQL connection using %s succeeded", label)
+            return engine
+        except SQLAlchemyError as e:
+            logger.warning("SQL connection using %s failed: %s", label, e)
+
+    raise SQLAlchemyError("All SQL connection attempts failed.")
 
 
 def get_engine_hist() -> Engine:
