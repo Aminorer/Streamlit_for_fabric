@@ -286,24 +286,37 @@ def load_hist_data(
 
 @st.cache_data(show_spinner=False)
 def load_prediction_data(
+    table_name: str,
     brands: Optional[List[str]] = None,
     seasons: Optional[List[str]] = None,
     sizes: Optional[List[str]] = None,
-    target_date: Optional[pd.Timestamp] = None,
+    start_date: Optional[pd.Timestamp] = None,
+    end_date: Optional[pd.Timestamp] = None,
 ):
-    """Load prediction data applying optional filters at the SQL level."""
-    tables = find_pred_tables()
-    if not tables:
-        logger.error(
-            "Aucune table de prédiction trouvée correspondant au motif pred_%"
-        )
-        return pd.DataFrame()
-    table_name = tables[0]
+    """Load prediction data applying optional filters at the SQL level.
+
+    Parameters
+    ----------
+    table_name : str
+        Name of the prediction table to query. Must be whitelisted in
+        ``ALLOWED_TABLES``.
+    brands, seasons, sizes : Optional[List[str]]
+        Filters applied on corresponding columns.
+    start_date, end_date : Optional[pd.Timestamp]
+        Date range filters applied on ``date_key``.
+    """
+
     _assert_allowed_table(table_name)
     engine = get_engine_pred()
     query = (
-        "SELECT date_key, tyre_brand, tyre_season_french, tyre_fullsize, "
-        "stock_status, main_rupture_date, criticality_score "
+        "SELECT date_key, tyre_fullsize, tyre_brand, tyre_season_french, "
+        "stock_prediction, price_prediction, ic_stock_plus, ic_stock_minus, "
+        "prediction_confidence, stock_status, volatility_status, "
+        "main_rupture_date, order_recommendation, tension_days, "
+        "recommended_volume, optimal_order_date, last_safe_order_date, "
+        "margin_opportunity_days, criticality_score, risk_level, "
+        "stability_index, anomaly_alert, seasonal_factor, "
+        "supply_chain_alert, volatility_type, procurement_urgency "
         f"FROM dbo.{table_name} WHERE 1=1"
     )
     params: Dict[str, object] = {}
@@ -319,17 +332,22 @@ def load_prediction_data(
         placeholders = ",".join([f":size{i}" for i in range(len(sizes))])
         query += f" AND tyre_fullsize IN ({placeholders})"
         params.update({f"size{i}": sz for i, sz in enumerate(sizes)})
-    if target_date is not None:
-        query += " AND date_key = :target_date"
-        params["target_date"] = target_date
+    if start_date is not None:
+        query += " AND date_key >= :start_date"
+        params["start_date"] = start_date
+    if end_date is not None:
+        query += " AND date_key <= :end_date"
+        params["end_date"] = end_date
+
     try:
         if params:
             df = pd.read_sql(query, engine, params=params)
         else:
             df = pd.read_sql(query, engine)
         df["date_key"] = pd.to_datetime(df["date_key"])
-        if "main_rupture_date" in df:
-            df["main_rupture_date"] = pd.to_datetime(df["main_rupture_date"])
+        for col in ["main_rupture_date", "optimal_order_date", "last_safe_order_date"]:
+            if col in df:
+                df[col] = pd.to_datetime(df[col])
         return df
     except SQLAlchemyError as e:
         logger.error("Erreur lors du chargement des données de prédiction: %s", e)

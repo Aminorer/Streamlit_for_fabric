@@ -3,7 +3,7 @@ import plotly.express as px
 import streamlit as st
 
 from constants import ASSOCIATED_COLORS
-from db_utils import load_hist_data, load_prediction_data
+from db_utils import load_hist_data, load_prediction_data, find_pred_tables
 from ui_utils import setup_sidebar_filters, display_dataframe
 
 
@@ -17,10 +17,17 @@ df_hist = load_hist_data(
     seasons=filters["seasons"],
     sizes=filters["sizes"],
 )
-df_pred = load_prediction_data(
-    brands=filters["brands"],
-    seasons=filters["seasons"],
-    sizes=filters["sizes"],
+pred_tables = find_pred_tables()
+pred_table = pred_tables[0] if pred_tables else None
+df_pred = (
+    load_prediction_data(
+        pred_table,
+        brands=filters["brands"],
+        seasons=filters["seasons"],
+        sizes=filters["sizes"],
+    )
+    if pred_table
+    else pd.DataFrame()
 )
 progress.progress(100)
 
