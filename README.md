@@ -42,24 +42,55 @@ endpoints des deux Lakehouses historiques et prédictifs. Utilisez un pilote
 ODBC compatible, par exemple `ODBC Driver 18 for SQL Server`. Les tables Delta
 sont exposées dans `INFORMATION_SCHEMA.TABLES` sous le schéma `dbo`.
 
-## Variables d'environnement
+## Configuration de développement
+
+### Variables d'environnement requises
 
 Les informations de connexion sont fournies via des variables d'environnement (par exemple dans `secret.env`).
 Un fichier d'exemple `secret.env.example` est disponible à la racine : copiez-le en `secret.env` et renseignez vos propres valeurs, puis ajustez les variables suivantes :
 
- - `SQL_USER` – Nom d'utilisateur SQL.
- - `SQL_PASSWORD` – Mot de passe SQL.
- - `SQL_DRIVER` – Pilote ODBC à utiliser.
- - `SQL_SERVER_HIST` – Adresse du serveur hébergeant les données historiques.
- - `SQL_DATABASE_HIST` – Base contenant les données historiques.
- - `SQL_SERVER_PRED` – Adresse du serveur des tables de prédiction.
- - `SQL_DATABASE_PRED` – Base contenant les tables de prédiction.
- - `ALLOWED_TABLES` – Liste des tables Delta à interroger, séparées par des
-   virgules. Exemple : `pred_amz_man,pred_ebay_dis`. Chaque nom doit être
-   séparé par une virgule, sinon les fonctions de chargement refuseront la
-   requête.
+- `SQL_USER` – Nom d'utilisateur SQL.
+- `SQL_PASSWORD` – Mot de passe SQL.
+- `SQL_DRIVER` – Pilote ODBC à utiliser.
+- `SQL_SERVER_HIST` – Adresse du serveur hébergeant les données historiques.
+- `SQL_DATABASE_HIST` – Base contenant les données historiques.
+- `SQL_SERVER_PRED` – Adresse du serveur des tables de prédiction.
+- `SQL_DATABASE_PRED` – Base contenant les tables de prédiction.
+- `ALLOWED_TABLES` – Liste des tables Delta à interroger, séparées par des virgules. Exemple : `pred_amz_man,pred_ebay_dis`. Chaque nom doit être séparé par une virgule, sinon les fonctions de chargement refuseront la requête.
 
 Assurez-vous que ces variables sont définies avant de lancer l'application et que `ALLOWED_TABLES` contient bien la whiteliste des tables disponibles.
+
+### Conventions de nommage des tables
+
+Les tables historiques suivent le motif `fullsize_stock_hist_%` et les tables de prédiction le motif `pred_%`. Les suffixes doivent correspondre pour former une paire cohérente, par exemple : `fullsize_stock_hist_amz_man` et `pred_amz_man`.
+
+### Création et alimentation des tables de test
+
+Pour le développement ou les tests locaux, créez une paire de tables historique/prédiction respectant les conventions ci-dessus et ajoutez-les à `ALLOWED_TABLES`. Exemple minimal :
+
+```sql
+-- Table historique
+CREATE TABLE dbo.fullsize_stock_hist_demo (
+    date       DATE,
+    brand      VARCHAR(50),
+    sku        VARCHAR(50),
+    stock_qty  INT
+);
+INSERT INTO dbo.fullsize_stock_hist_demo VALUES ('2024-01-01','MICHELIN','XYZ',100);
+
+-- Table de prédiction correspondante
+CREATE TABLE dbo.pred_demo (
+    date              DATE,
+    brand             VARCHAR(50),
+    sku               VARCHAR(50),
+    stock_qty         INT,
+    stock_status      VARCHAR(20),
+    criticality_score FLOAT
+);
+INSERT INTO dbo.pred_demo VALUES ('2024-01-01','MICHELIN','XYZ',100,'OK',0.1);
+```
+
+Ces tables de test peuvent ensuite être interrogées via les fonctions `load_hist_data` et `load_prediction_data`.
 
 ## Tests
 
