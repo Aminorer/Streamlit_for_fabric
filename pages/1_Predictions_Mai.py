@@ -13,7 +13,7 @@ ASSOCIATED_COLORS = [
 
 from db_utils import (
     load_hist_data,
-    get_engine,
+    get_engine_pred,
 )
 
 
@@ -45,7 +45,7 @@ def filter_data(df, brands, seasons, sizes):
 
 
 def list_prediction_tables():
-    engine = get_engine()
+    engine = get_engine_pred()
     query = (
         "SELECT table_name FROM INFORMATION_SCHEMA.TABLES "
         "WHERE table_schema = 'dbo' "
@@ -57,7 +57,7 @@ def list_prediction_tables():
 
 
 def load_prediction_data(table_name):
-    engine = get_engine()
+    engine = get_engine_pred()
     query = (
         f"SELECT date_key, tyre_brand, tyre_season_french, tyre_fullsize, "
         f"stock_prediction, price_prediction FROM dbo.{table_name}"

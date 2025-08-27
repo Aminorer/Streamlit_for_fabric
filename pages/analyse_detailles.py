@@ -3,7 +3,7 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 
-from db_utils import get_engine, load_hist_data
+from db_utils import get_engine_pred, load_hist_data
 
 ASSOCIATED_COLORS = [
     "#7fbfdc",
@@ -21,7 +21,7 @@ def format_model_name(name: str) -> str:
 
 @st.cache_data
 def list_prediction_tables():
-    engine = get_engine()
+    engine = get_engine_pred()
     query = (
         "SELECT table_name FROM INFORMATION_SCHEMA.TABLES "
         "WHERE table_schema = 'dbo' "
@@ -33,7 +33,7 @@ def list_prediction_tables():
 
 @st.cache_data
 def load_prediction_data(table_name: str) -> pd.DataFrame:
-    engine = get_engine()
+    engine = get_engine_pred()
     df = pd.read_sql(f"SELECT * FROM dbo.{table_name}", engine)
     if "date_key" in df.columns:
         df["date_key"] = pd.to_datetime(df["date_key"], errors="coerce")
