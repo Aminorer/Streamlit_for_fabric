@@ -2,6 +2,8 @@ import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 
+from input_utils import sanitize_list
+
 ASSOCIATED_COLORS = [
     "#7fbfdc",
     "#6ba6b6",
@@ -167,11 +169,15 @@ def main():
         st.error("Aucune donnée disponible.")
         return
 
-    brands = st.sidebar.multiselect("Marques", sorted(df["tyre_brand"].unique()))
-    seasons = st.sidebar.multiselect(
-        "Saisons", sorted(df["tyre_season_french"].unique())
+    brands = sanitize_list(
+        st.sidebar.multiselect("Marques", sorted(df["tyre_brand"].unique()))
     )
-    sizes = st.sidebar.multiselect("Tailles", sorted(df["tyre_fullsize"].unique()))
+    seasons = sanitize_list(
+        st.sidebar.multiselect("Saisons", sorted(df["tyre_season_french"].unique()))
+    )
+    sizes = sanitize_list(
+        st.sidebar.multiselect("Tailles", sorted(df["tyre_fullsize"].unique()))
+    )
 
     if st.sidebar.button("Appliquer"):
         df = filter_data(df, brands, seasons, sizes)

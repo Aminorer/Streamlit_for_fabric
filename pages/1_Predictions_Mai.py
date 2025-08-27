@@ -5,6 +5,7 @@ import plotly.graph_objects as go
 
 from sqlalchemy.exc import SQLAlchemyError
 
+from input_utils import sanitize_list
 ASSOCIATED_COLORS = [
     "#7fbfdc",
     "#6ba6b6",
@@ -360,19 +361,27 @@ def main():
         st.error("Aucune table de prédictions trouvée.")
         return
 
-    selected_tables = st.sidebar.multiselect(
-        "Tables de prédictions",
-        tables,
-        default=tables[:1],
-        format_func=format_model_name,
+    selected_tables = sanitize_list(
+        st.sidebar.multiselect(
+            "Tables de prédictions",
+            tables,
+            default=tables[:1],
+            format_func=format_model_name,
+        )
     )
     pred_dict = {t: load_pred_cached(t) for t in selected_tables}
 
-    brands = st.sidebar.multiselect("Marques", sorted(df_hist["tyre_brand"].unique()))
-    seasons = st.sidebar.multiselect(
-        "Saisons", sorted(df_hist["tyre_season_french"].unique())
+    brands = sanitize_list(
+        st.sidebar.multiselect("Marques", sorted(df_hist["tyre_brand"].unique()))
     )
-    sizes = st.sidebar.multiselect("Tailles", sorted(df_hist["tyre_fullsize"].unique()))
+    seasons = sanitize_list(
+        st.sidebar.multiselect(
+            "Saisons", sorted(df_hist["tyre_season_french"].unique())
+        )
+    )
+    sizes = sanitize_list(
+        st.sidebar.multiselect("Tailles", sorted(df_hist["tyre_fullsize"].unique()))
+    )
 
     if st.sidebar.button("Appliquer"):
         pred_dict_f = {t: filter_data(pred, brands, seasons, sizes) for t, pred in pred_dict.items()}

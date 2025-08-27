@@ -7,6 +7,8 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from db_utils import get_engine_pred, load_hist_data
 
+from input_utils import sanitize_list
+
 ASSOCIATED_COLORS = [
     "#7fbfdc",
     "#6ba6b6",
@@ -97,11 +99,13 @@ if not tables:
     st.error("Aucune table de prédictions trouvée.")
     st.stop()
 
-selected_tables = st.sidebar.multiselect(
-    "Tables de prédictions",
-    tables,
-    default=tables[:1],
-    format_func=format_model_name,
+selected_tables = sanitize_list(
+    st.sidebar.multiselect(
+        "Tables de prédictions",
+        tables,
+        default=tables[:1],
+        format_func=format_model_name,
+    )
 )
 
 if not selected_tables:
@@ -111,9 +115,15 @@ if not selected_tables:
 pred_dict = {t: load_prediction_data(t) for t in selected_tables}
 all_df = pd.concat(pred_dict.values(), ignore_index=True)
 
-brands = st.sidebar.multiselect("Marques", sorted(all_df["tyre_brand"].dropna().unique()))
-seasons = st.sidebar.multiselect("Saisons", sorted(all_df["tyre_season_french"].dropna().unique()))
-sizes = st.sidebar.multiselect("Tailles", sorted(all_df["tyre_fullsize"].dropna().unique()))
+brands = sanitize_list(
+    st.sidebar.multiselect("Marques", sorted(all_df["tyre_brand"].dropna().unique()))
+)
+seasons = sanitize_list(
+    st.sidebar.multiselect("Saisons", sorted(all_df["tyre_season_french"].dropna().unique()))
+)
+sizes = sanitize_list(
+    st.sidebar.multiselect("Tailles", sorted(all_df["tyre_fullsize"].dropna().unique()))
+)
 
 if not st.sidebar.button("Appliquer"):
     st.stop()
