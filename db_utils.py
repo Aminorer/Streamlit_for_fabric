@@ -3,9 +3,9 @@ import os
 import re
 import pandas as pd
 import streamlit as st
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, inspect
 from sqlalchemy.engine import Engine
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import SQLAlchemyError, NoInspectionAvailable
 from sklearn.compose import ColumnTransformer
 from sklearn.preprocessing import OneHotEncoder
 from sklearn.pipeline import Pipeline
@@ -21,10 +21,34 @@ logger = logging.getLogger(__name__)
 _TABLE_NAME_RE = re.compile(r"^[A-Za-z0-9_]+$")
 
 
-def _validate_table_name(table: str) -> None:
-    """Ensure the table name only contains alphanumeric characters and underscores."""
+def validate_table_name(table: str, engine: Optional[Engine] = None) -> None:
+    """Validate a table name and optionally ensure it exists.
+
+    Parameters
+    ----------
+    table : str
+        Name of the table to validate.
+    engine : Optional[Engine]
+        SQLAlchemy engine used to verify the table exists. If ``None`` the
+        existence check is skipped.
+    """
+
     if not _TABLE_NAME_RE.fullmatch(table):
         raise ValueError(f"Invalid table name '{table}'.")
+
+    if engine is None:
+        return
+
+    try:
+        inspector = inspect(engine)
+        if not inspector.has_table(table, schema="dbo"):
+            raise ValueError(f"Table '{table}' does not exist.")
+    except NoInspectionAvailable:
+        # Engine could be a mock object in tests; skip existence check.
+        return
+    except SQLAlchemyError as e:
+        logger.error("Erreur lors de l'inspection de la table %s: %s", table, e)
+        raise ValueError(f"Table '{table}' does not exist.") from e
 
 
 def _build_engine(server: str, database: str) -> Engine:
@@ -212,12 +236,12 @@ def validate_table_consistency(hist_table: str, pred_table: str) -> bool:
         ``True`` if tables are consistent, ``False`` otherwise.
     """
 
-    _validate_table_name(hist_table)
-    _validate_table_name(pred_table)
-    if hist_table not in find_hist_tables():
-        raise ValueError(f"Table '{hist_table}' does not exist.")
-    if pred_table not in find_pred_tables():
-        raise ValueError(f"Table '{pred_table}' does not exist.")
+    validate_table_name(hist_table)
+    validate_table_name(pred_table)
+    engine_hist = get_engine_hist()
+    engine_pred = get_engine_pred()
+    validate_table_name(hist_table, engine_hist)
+    validate_table_name(pred_table, engine_pred)
 
     hist_suffix = hist_table.replace("fullsize_stock_hist_", "").lower()
     pred_suffix = pred_table.replace("pred_", "").lower()
@@ -276,8 +300,9 @@ def load_hist_data(
         )
         return pd.DataFrame()
     table_name = tables[0]
-    _validate_table_name(table_name)
+    validate_table_name(table_name)
     engine = get_engine_hist()
+    validate_table_name(table_name, engine)
     query = (
         "SELECT date_key, tyre_brand, tyre_season_french, tyre_fullsize, "
         f"Sum_stock_quantity, Avg_supplier_price_eur FROM dbo.{table_name} WHERE 1=1"
@@ -334,10 +359,11 @@ def load_prediction_data(
         Date range filters applied on ``date_key``.
     """
 
-    _validate_table_name(table_name)
+    validate_table_name(table_name)
     if not prediction_table_exists(table_name):
         raise ValueError(f"Table '{table_name}' does not exist.")
     engine = get_engine_pred()
+    validate_table_name(table_name, engine)
     query = (
         "SELECT date_key, tyre_fullsize, tyre_brand, tyre_season_french, "
         "stock_prediction, price_prediction, ic_price_plus, ic_price_minus, "
@@ -392,8 +418,9 @@ def prediction_table_exists(table_name: str) -> bool:
 
 def save_dataframe_to_table(df: pd.DataFrame, table_name: str) -> pd.DataFrame:
     """Save a DataFrame to the specified SQL table."""
-    _validate_table_name(table_name)
+    validate_table_name(table_name)
     engine = get_engine_pred()
+    validate_table_name(table_name, engine)
     try:
         df.to_sql(
             table_name,
