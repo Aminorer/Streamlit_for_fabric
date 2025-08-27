@@ -4,14 +4,15 @@ import streamlit as st
 
 from constants import ASSOCIATED_COLORS
 from sample_data import load_sample_data
-from ui_utils import setup_sidebar_filters
+from ui_utils import setup_sidebar_filters, display_dataframe
 
 
 def main() -> None:
     st.set_page_config(page_title="Prédictions mensuelles", layout="wide")
 
-    with st.spinner("Chargement des données..."):
-        df = load_sample_data()
+    progress = st.progress(0)
+    df = load_sample_data()
+    progress.progress(100)
 
     _ = setup_sidebar_filters(df)
     st.title("Prédictions mensuelles")
@@ -33,7 +34,7 @@ def main() -> None:
     )
     st.plotly_chart(fig, use_container_width=True)
 
-    st.dataframe(daily, use_container_width=True)
+    display_dataframe(daily)
     csv = daily.to_csv(index=False).encode("utf-8")
     st.download_button("Exporter CSV", csv, "predictions_mensuelles.csv", "text/csv")
 

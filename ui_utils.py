@@ -1,6 +1,8 @@
 import datetime
+import math
 from typing import Any, Dict, List, Optional
 
+import pandas as pd
 import streamlit as st
 
 import db_utils
@@ -79,3 +81,21 @@ def setup_sidebar_filters(df: Optional[object] = None) -> Dict[str, Any]:
         "seasons": seasons,
         "sizes": sizes,
     }
+
+
+def display_dataframe(df: pd.DataFrame, rows_per_page: int = 1000) -> None:
+    """Display a DataFrame with pagination when it exceeds 10k rows.
+
+    A progress bar indicates the portion of data currently visible.
+    """
+    total_rows = len(df)
+    if total_rows > 10_000:
+        total_pages = math.ceil(total_rows / rows_per_page)
+        page = st.number_input("Page", min_value=1, max_value=total_pages, value=1)
+        start = (page - 1) * rows_per_page
+        end = start + rows_per_page
+        progress = st.progress(0)
+        progress.progress(min(int(end / total_rows * 100), 100))
+        st.dataframe(df.iloc[start:end], use_container_width=True)
+    else:
+        st.dataframe(df, use_container_width=True)

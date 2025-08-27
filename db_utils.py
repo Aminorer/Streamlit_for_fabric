@@ -1,6 +1,7 @@
 import logging
 import os
 import pandas as pd
+import streamlit as st
 from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import SQLAlchemyError
@@ -57,6 +58,7 @@ def get_engine() -> Engine:
     return _build_engine(database)
 
 
+@st.cache_data(show_spinner=False)
 def find_hist_tables() -> List[str]:
     """Return historical table names matching the pattern fullsize_stock_hist_%."""
     engine = get_engine_hist()
@@ -74,6 +76,7 @@ def find_hist_tables() -> List[str]:
         return []
 
 
+@st.cache_data(show_spinner=False)
 def find_pred_tables() -> List[str]:
     """Return prediction table names matching the pattern pred_%."""
     engine = get_engine_pred()
@@ -91,6 +94,7 @@ def find_pred_tables() -> List[str]:
         return []
 
 
+@st.cache_data(show_spinner=False)
 def discover_platforms() -> Dict[str, List[str]]:
     """Discover available platforms and activities from table names.
 
@@ -124,6 +128,7 @@ def discover_platforms() -> Dict[str, List[str]]:
     return {plat: sorted(list(acts)) for plat, acts in sorted(platforms.items())}
 
 
+@st.cache_data(show_spinner=False)
 def get_matching_tables(platform: str, activity_type: str) -> Tuple[Optional[str], Optional[str]]:
     """Return historical and prediction table names for the given platform.
 
@@ -212,7 +217,15 @@ def validate_table_consistency(hist_table: str, pred_table: str) -> bool:
     return True
 
 
-def load_hist_data():
+@st.cache_data(show_spinner=False)
+def load_hist_data(
+    brands: Optional[List[str]] = None,
+    seasons: Optional[List[str]] = None,
+    sizes: Optional[List[str]] = None,
+    start_date: Optional[pd.Timestamp] = None,
+    end_date: Optional[pd.Timestamp] = None,
+):
+    """Load historical data applying optional filters at the SQL level."""
     tables = find_hist_tables()
     if not tables:
         logger.error(
@@ -223,10 +236,32 @@ def load_hist_data():
     engine = get_engine_hist()
     query = (
         "SELECT date_key, tyre_brand, tyre_season_french, tyre_fullsize, "
-        f"Sum_stock_quantity, Avg_supplier_price_eur FROM dbo.{table_name}"
+        f"Sum_stock_quantity, Avg_supplier_price_eur FROM dbo.{table_name} WHERE 1=1"
     )
+    params: Dict[str, object] = {}
+    if brands:
+        placeholders = ",".join([f":brand{i}" for i in range(len(brands))])
+        query += f" AND tyre_brand IN ({placeholders})"
+        params.update({f"brand{i}": b for i, b in enumerate(brands)})
+    if seasons:
+        placeholders = ",".join([f":season{i}" for i in range(len(seasons))])
+        query += f" AND tyre_season_french IN ({placeholders})"
+        params.update({f"season{i}": s for i, s in enumerate(seasons)})
+    if sizes:
+        placeholders = ",".join([f":size{i}" for i in range(len(sizes))])
+        query += f" AND tyre_fullsize IN ({placeholders})"
+        params.update({f"size{i}": sz for i, sz in enumerate(sizes)})
+    if start_date is not None:
+        query += " AND date_key >= :start_date"
+        params["start_date"] = start_date
+    if end_date is not None:
+        query += " AND date_key <= :end_date"
+        params["end_date"] = end_date
     try:
-        df = pd.read_sql(query, engine)
+        if params:
+            df = pd.read_sql(query, engine, params=params)
+        else:
+            df = pd.read_sql(query, engine)
         df["date_key"] = pd.to_datetime(df["date_key"])
         return df
     except SQLAlchemyError as e:
