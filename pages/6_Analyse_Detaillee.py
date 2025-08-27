@@ -3,14 +3,17 @@ import streamlit as st
 
 from constants import ASSOCIATED_COLORS
 from sample_data import load_sample_data
+from ui_utils import setup_sidebar_filters
 
 
 def main() -> None:
     st.set_page_config(page_title="Analyse détaillée", layout="wide")
-    st.title("Analyse détaillée")
 
     with st.spinner("Chargement des données..."):
         df = load_sample_data()
+
+    _ = setup_sidebar_filters(df)
+    st.title("Analyse détaillée")
 
     if df.empty:
         st.warning("Aucune donnée disponible.")

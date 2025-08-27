@@ -4,14 +4,17 @@ import streamlit as st
 
 from constants import ASSOCIATED_COLORS
 from sample_data import load_sample_data
+from ui_utils import setup_sidebar_filters
 
 
 def main() -> None:
     st.set_page_config(page_title="Prédictions mensuelles", layout="wide")
-    st.title("Prédictions mensuelles")
 
     with st.spinner("Chargement des données..."):
         df = load_sample_data()
+
+    _ = setup_sidebar_filters(df)
+    st.title("Prédictions mensuelles")
 
     if df.empty:
         st.warning("Aucune donnée disponible.")

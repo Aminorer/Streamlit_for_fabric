@@ -4,13 +4,16 @@ import streamlit as st
 
 from constants import ASSOCIATED_COLORS
 from sample_data import load_sample_data
+from ui_utils import setup_sidebar_filters
 
 
 st.set_page_config(page_title="Tableau de bord exécutif", layout="wide")
-st.title("Tableau de bord exécutif")
 
 with st.spinner("Chargement des données..."):
     df = load_sample_data()
+
+_ = setup_sidebar_filters(df)
+st.title("Tableau de bord exécutif")
 
 if df.empty:
     st.warning("Aucune donnée disponible.")
