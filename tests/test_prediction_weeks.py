@@ -7,16 +7,16 @@ def test_discover_prediction_weeks(monkeypatch):
         db_utils,
         "find_pred_tables",
         lambda: [
-            "pred_amz_man_20240101",
-            "pred_amz_dis_20240101",
-            "pred_amz_man_20240108",
-            "pred_ebay_man_20240101",
+            "pred_amz_man_20240102",
+            "pred_amz_dis_20240102",
+            "pred_amz_man_20240109",
+            "pred_ebay_man_20240102",
         ],
     )
     weeks = db_utils.discover_prediction_weeks("amz")
     assert weeks == [
-        "01/01/2024 - Semaine 1",
-        "08/01/2024 - Semaine 2",
+        "02/01/2024 - Semaine 1",
+        "09/01/2024 - Semaine 2",
     ]
 
 
@@ -25,9 +25,9 @@ def test_load_multi_week_predictions(monkeypatch):
         db_utils,
         "find_pred_tables",
         lambda: [
-            "pred_amz_man_20240101",
-            "pred_amz_man_20240108",
-            "pred_amz_dis_20240101",
+            "pred_amz_man_20240102",
+            "pred_amz_man_20240109",
+            "pred_amz_dis_20240102",
         ],
     )
     calls = []
@@ -63,15 +63,18 @@ def test_load_multi_week_predictions(monkeypatch):
         "end_date": None,
     }
     selected = [
-        "01/01/2024 - Semaine 1",
-        "08/01/2024 - Semaine 2",
+        "02/01/2024 - Semaine 1",
+        "09/01/2024 - Semaine 2",
     ]
     result = db_utils.load_multi_week_predictions("amz", "man", selected, filters)
 
     assert set(result.keys()) == set(selected)
+    assert result[selected[0]].iloc[0]["table"] == "pred_amz_man_20240102"
+    assert result[selected[1]].iloc[0]["table"] == "pred_amz_man_20240109"
+    assert len(calls) == 2
     assert calls[0]["brands"] == ["MICHELIN"]
     assert calls[0]["seasons"] == ["ETE"]
     assert calls[0]["sizes"] == ["205/55R16"]
     assert calls[0]["start_date"] is None
     assert calls[0]["end_date"] is None
-    assert calls[1]["table_name"] == "pred_amz_man_20240108"
+    assert calls[1]["table_name"] == "pred_amz_man_20240109"

@@ -14,26 +14,60 @@ spec.loader.exec_module(module)
 analyze_prediction_accuracy_by_week = module.analyze_prediction_accuracy_by_week
 
 
-def test_excludes_zero_stock_rows():
+def test_weekly_accuracy():
     hist_df = pd.DataFrame(
         {
-            "date_key": ["2024-01-01", "2024-01-02", "2024-01-03"],
-            "Sum_stock_quantity": [10, 0, 5],
+            "date_key": [
+                "2024-01-01",
+                "2024-01-02",
+                "2024-01-08",
+                "2024-01-09",
+            ],
+            "Sum_stock_quantity": [10, 10, 10, 20],
         }
     )
     pred_df = pd.DataFrame(
         {
-            "date_key": ["2024-01-01", "2024-01-02", "2024-01-03"],
-            "stock_prediction": [8, 1, 6],
+            "date_key": [
+                "2024-01-01",
+                "2024-01-02",
+                "2024-01-08",
+                "2024-01-09",
+            ],
+            "stock_prediction": [8, 12, 5, 25],
         }
     )
     result = analyze_prediction_accuracy_by_week(hist_df, pred_df)
-    assert not result.empty
+    assert result["week"].tolist() == [
+        pd.Timestamp("2024-01-01"),
+        pd.Timestamp("2024-01-08"),
+    ]
+    first_week = result.loc[result["week"] == pd.Timestamp("2024-01-01"), "accuracy"].iloc[0]
+    second_week = result.loc[result["week"] == pd.Timestamp("2024-01-08"), "accuracy"].iloc[0]
+    assert pytest.approx(first_week, rel=1e-6) == 0.8
+    assert pytest.approx(second_week, rel=1e-6) == 0.625
+
+
+def test_excludes_zero_stock_rows():
+    hist_df = pd.DataFrame(
+        {
+            "date_key": ["2024-01-02", "2024-01-09"],
+            "Sum_stock_quantity": [0, 5],
+        }
+    )
+    pred_df = pd.DataFrame(
+        {
+            "date_key": ["2024-01-02", "2024-01-09"],
+            "stock_prediction": [3, 6],
+        }
+    )
+    result = analyze_prediction_accuracy_by_week(hist_df, pred_df)
+    assert result["week"].tolist() == [pd.Timestamp("2024-01-08")]
     assert pytest.approx(result.loc[0, "accuracy"], rel=1e-6) == 0.8
 
 
 def test_all_zero_stock_returns_empty():
-    hist_df = pd.DataFrame({"date_key": ["2024-01-01"], "Sum_stock_quantity": [0]})
-    pred_df = pd.DataFrame({"date_key": ["2024-01-01"], "stock_prediction": [5]})
+    hist_df = pd.DataFrame({"date_key": ["2024-01-02"], "Sum_stock_quantity": [0]})
+    pred_df = pd.DataFrame({"date_key": ["2024-01-02"], "stock_prediction": [5]})
     result = analyze_prediction_accuracy_by_week(hist_df, pred_df)
     assert result.empty
