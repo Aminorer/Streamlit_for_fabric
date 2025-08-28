@@ -52,7 +52,12 @@ def plot_historical_vs_multi_predictions(
 def analyze_prediction_accuracy_by_week(
     hist_df: pd.DataFrame, pred_df: pd.DataFrame
 ) -> pd.DataFrame:
-    """Compute weekly accuracy between historical and predicted values."""
+    """Compute weekly prediction accuracy.
+
+    Rows where ``Sum_stock_quantity`` equals ``0`` are excluded before
+    calculating the Mean Absolute Percentage Error (MAPE) to avoid division by
+    zero. Weekly accuracy is returned as ``1 - MAPE``.
+    """
     if not (
         {"date_key", "Sum_stock_quantity"}.issubset(hist_df.columns)
         and {"date_key", "stock_prediction"}.issubset(pred_df.columns)
@@ -63,22 +68,21 @@ def analyze_prediction_accuracy_by_week(
         on="date_key",
         how="left",
     )
-    merged["abs_error"] = (
-        merged["stock_prediction"] - merged["Sum_stock_quantity"]
-    ).abs()
+    # Exclude rows with zero historical quantity to avoid divide-by-zero in MAPE
+    merged = merged[merged["Sum_stock_quantity"] != 0].copy()
+    if merged.empty:
+        return pd.DataFrame()
+    merged["abs_perc_error"] = (
+        (merged["stock_prediction"] - merged["Sum_stock_quantity"]).abs()
+        / merged["Sum_stock_quantity"]
+    )
     merged["week"] = pd.to_datetime(merged["date_key"]).dt.to_period("W").apply(
         lambda r: r.start_time
     )
     weekly = (
-        merged.groupby("week")
-        .apply(
-            lambda d: 1
-            - d["abs_error"].sum() / d["Sum_stock_quantity"].sum()
-            if d["Sum_stock_quantity"].sum()
-            else 0
-        )
-        .reset_index(name="accuracy")
-    )
+        1
+        - merged.groupby("week")["abs_perc_error"].mean()
+    ).reset_index(name="accuracy")
     return weekly
 
 
