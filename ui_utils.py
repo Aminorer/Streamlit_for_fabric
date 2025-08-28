@@ -9,23 +9,6 @@ import db_utils
 from input_utils import sanitize_input, sanitize_list
 
 
-def _discover_platforms() -> List[str]:
-    """Discover platform names from available database tables.
-
-    Returns
-    -------
-    List[str]
-        Sorted unique platform names extracted from historical and
-        prediction table names.
-    """
-    tables = db_utils.find_hist_tables() + db_utils.find_pred_tables()
-    platforms = {
-        tbl.replace("fullsize_stock_hist_", "").replace("pred_", "")
-        for tbl in tables
-    }
-    return sorted(platforms)
-
-
 def setup_sidebar_filters(df: Optional[object] = None) -> Dict[str, Any]:
     """Render common sidebar filters and return selected values.
 
@@ -41,7 +24,7 @@ def setup_sidebar_filters(df: Optional[object] = None) -> Dict[str, Any]:
     Dict[str, Any]
         Dictionary containing the selected filter values.
     """
-    platforms = _discover_platforms()
+    platforms = sorted(db_utils.discover_platforms().keys())
     platform = (
         st.sidebar.selectbox("Plateforme", platforms)
         if platforms

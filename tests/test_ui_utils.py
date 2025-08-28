@@ -16,10 +16,9 @@ from ui_utils import (
 def test_setup_sidebar_filters_discovers_platforms(monkeypatch):
     monkeypatch.setattr(
         db_utils,
-        "find_hist_tables",
-        lambda: ["fullsize_stock_hist_amz", "fullsize_stock_hist_ebay"],
+        "discover_platforms",
+        lambda: {"amz": ["man"], "ebay": ["dis"]},
     )
-    monkeypatch.setattr(db_utils, "find_pred_tables", lambda: ["pred_amz"])
 
     captured = {}
 
