@@ -18,10 +18,24 @@ df_pred = load_prediction_data("pred_amz_man", brands=["MICHELIN"])
 
 L'application propose plusieurs pages accessibles depuis le menu :
 
+- **Analyse comparative** (`pages/1_Analyse_Comparative.py`) — comparaison de l'historique avec plusieurs séries de prédictions et calcul de précision hebdomadaire.
 - **Gestion des ruptures** (`pages/1_Gestion_Ruptures.py`) — suivi des dates de rupture principales et des recommandations de commande.
 - **Analyse des prédictions** (`pages/1_Analyse_Prediction.py`) — répartition des statuts de stock et scores de criticité.
 - **Analyse des prix** (`pages/2_Analyse_Prix.py`) — opportunités de marge et tendances de prix.
 - **Volatilité & risques** (`pages/3_Volatilite_Risques.py`) — états de volatilité et alertes associées.
+
+## Analyse comparative
+
+Cette page confronte l'historique des volumes aux différentes séries de prédictions disponibles.
+Elle permet de filtrer par marque, saison, dimension et période, puis :
+
+- superpose les quantités historiques et chaque série `stock_prediction*` dans un graphique ;
+- calcule la précision hebdomadaire (1 − MAPE) et affiche son évolution ;
+- exporte les données combinées au format CSV.
+
+Les tables de prédiction suivent un motif `pred_<plateforme>_<activité>_<YYYYMMDD>` :
+la date correspond au mardi de génération de la semaine, les prévisions étant recalculées chaque mardi.
+Les visualisations exploitent la palette de couleurs Wyz (`ASSOCIATED_COLORS`) définie dans `constants.py` pour assurer une identité visuelle homogène.
 
 ## Colonnes clés
 
