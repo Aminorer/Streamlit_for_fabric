@@ -1,12 +1,23 @@
 import datetime
 import math
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import pandas as pd
 import streamlit as st
 
 import db_utils
 from input_utils import sanitize_input, sanitize_list
+
+
+def hex_to_rgb(color: str) -> Tuple[int, int, int]:
+    """Convert HEX color (e.g. ``"#ff00aa"``) to an RGB tuple."""
+    color = color.lstrip("#")
+    if len(color) != 6:
+        raise ValueError("Invalid HEX color")
+    r = int(color[0:2], 16)
+    g = int(color[2:4], 16)
+    b = int(color[4:6], 16)
+    return r, g, b
 
 
 def setup_sidebar_filters(df: Optional[object] = None) -> Dict[str, Any]:
