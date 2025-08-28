@@ -597,8 +597,8 @@ def prediction_table_exists(table_name: str) -> bool:
 def load_multi_week_predictions(
     platform: str,
     activity_type: str,
-    selected_weeks: List[str],
-    filters: Dict[str, Optional[Any]],
+    selected_weeks: Optional[List[str]] = None,
+    filters: Optional[Dict[str, Optional[Any]]] = None,
 ) -> Dict[str, pd.DataFrame]:
     """Load prediction data for multiple weeks.
 
@@ -608,9 +608,10 @@ def load_multi_week_predictions(
         Platform identifier (e.g. ``amz``).
     activity_type : str
         Activity type identifier (e.g. ``man``).
-    selected_weeks : List[str]
-        Week labels as returned by :func:`discover_prediction_weeks`.
-    filters : Dict[str, Optional[Any]]
+    selected_weeks : Optional[List[str]], optional
+        Week labels as returned by :func:`discover_prediction_weeks`. If
+        ``None``, the function loads up to the last four available weeks.
+    filters : Optional[Dict[str, Optional[Any]]], optional
         Mapping containing optional filter lists for ``brands``, ``seasons`` and
         ``sizes`` as well as ``start_date`` and ``end_date`` timestamps.
 
@@ -623,6 +624,7 @@ def load_multi_week_predictions(
     tables = find_pred_tables()
     prefix = f"pred_{platform.lower()}_{activity_type.lower()}_"
     week_to_table: Dict[str, str] = {}
+    week_dates: List[pd.Timestamp] = []
     for tbl in tables:
         if not tbl.lower().startswith(prefix):
             continue
@@ -636,6 +638,16 @@ def load_multi_week_predictions(
             continue
         label = f"{date.strftime('%d/%m/%Y')} - Semaine {date.isocalendar().week}"
         week_to_table[label] = tbl
+        week_dates.append(date)
+
+    available_weeks = [
+        f"{d.strftime('%d/%m/%Y')} - Semaine {d.isocalendar().week}"
+        for d in sorted(week_dates)
+    ]
+    if selected_weeks is None:
+        selected_weeks = available_weeks[-min(4, len(available_weeks)) :]
+
+    filters = filters or {}
 
     result: Dict[str, pd.DataFrame] = {}
     for week in selected_weeks:
