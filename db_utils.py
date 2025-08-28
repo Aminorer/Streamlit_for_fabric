@@ -654,6 +654,60 @@ def load_multi_week_predictions(
     return result
 
 
+def prepare_export_data(
+    df_hist: pd.DataFrame, predictions_dict: Dict[str, pd.DataFrame]
+) -> pd.DataFrame:
+    """Merge historical data and multi-week predictions for export.
+
+    Parameters
+    ----------
+    df_hist : pandas.DataFrame
+        Historical data containing at least the columns ``date_key``,
+        ``tyre_brand``, ``tyre_season_french`` and ``tyre_fullsize`` along with
+        historical quantity values.
+    predictions_dict : Dict[str, pandas.DataFrame]
+        Mapping of week label to prediction DataFrame. Each prediction
+        DataFrame must contain the key columns above and a
+        ``stock_prediction`` column.
+
+    Returns
+    -------
+    pandas.DataFrame
+        Flat DataFrame combining historical quantities with prediction values
+        for each selected week. A ``prediction_week`` column is included to
+        retain the origin week of each prediction for traceability.
+    """
+
+    if not predictions_dict:
+        return pd.DataFrame()
+
+    key_cols = [
+        "date_key",
+        "tyre_brand",
+        "tyre_season_french",
+        "tyre_fullsize",
+    ]
+
+    frames = []
+    for week_label, pred_df in predictions_dict.items():
+        if pred_df.empty or "stock_prediction" not in pred_df.columns:
+            continue
+        # Only keep relevant columns to avoid unexpected clashes during merge
+        cols = [c for c in key_cols if c in pred_df.columns] + ["stock_prediction"]
+        tmp = pred_df[cols].copy()
+        tmp["prediction_week"] = week_label
+        frames.append(tmp)
+
+    if not frames:
+        return pd.DataFrame()
+
+    preds_flat = pd.concat(frames, ignore_index=True)
+
+    # Merge predictions with historical quantities
+    merged = preds_flat.merge(df_hist, on=key_cols, how="left")
+    return merged
+
+
 def aggregate_predictions(df: pd.DataFrame, show_confidence: bool = False) -> pd.DataFrame:
     """Aggregate prediction values per date and brand.
 
