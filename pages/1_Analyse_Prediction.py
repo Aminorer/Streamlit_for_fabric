@@ -2,7 +2,6 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
-from typing import Tuple
 
 from constants import ASSOCIATED_COLORS
 from db_utils import (
@@ -11,18 +10,7 @@ from db_utils import (
     get_table_columns,
     aggregate_predictions,
 )
-from ui_utils import setup_sidebar_filters, display_dataframe
-
-
-def hex_to_rgb(color: str) -> Tuple[int, int, int]:
-    """Convert HEX color to an RGB tuple."""
-    color = color.lstrip("#")
-    if len(color) != 6:
-        raise ValueError("Invalid HEX color")
-    r = int(color[0:2], 16)
-    g = int(color[2:4], 16)
-    b = int(color[4:6], 16)
-    return r, g, b
+from ui_utils import setup_sidebar_filters, display_dataframe, hex_to_rgb
 
 
 def main() -> None:

@@ -4,12 +4,14 @@ import types
 
 import streamlit as st
 import pandas as pd
+import pytest
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 import db_utils
 from ui_utils import (
     setup_sidebar_filters,
     setup_prediction_comparison_filters,
+    hex_to_rgb,
 )
 
 
@@ -58,3 +60,13 @@ def test_setup_prediction_comparison_filters(monkeypatch):
     assert filters["brands"] == ["A"]
     assert filters["seasons"] == ["Été"]
     assert filters["sizes"] == ["195"]
+
+
+def test_hex_to_rgb_valid():
+    assert hex_to_rgb("#ffffff") == (255, 255, 255)
+    assert hex_to_rgb("#000000") == (0, 0, 0)
+
+
+def test_hex_to_rgb_invalid():
+    with pytest.raises(ValueError):
+        hex_to_rgb("zzz")

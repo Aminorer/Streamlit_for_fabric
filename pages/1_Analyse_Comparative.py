@@ -13,6 +13,7 @@ from db_utils import (
 from ui_utils import (
     setup_prediction_comparison_filters,
     display_dataframe,
+    hex_to_rgb,
 )
 
 
@@ -21,6 +22,7 @@ def plot_historical_vs_multi_predictions(
 ) -> None:
     """Plot historical quantities against available prediction series."""
     fig = go.Figure()
+    color_idx = 0
     if {"date_key", "Sum_stock_quantity"}.issubset(hist_df.columns):
         fig.add_trace(
             go.Scatter(
@@ -28,21 +30,50 @@ def plot_historical_vs_multi_predictions(
                 y=hist_df["Sum_stock_quantity"],
                 mode="lines",
                 name="Historique",
+                line=dict(color=ASSOCIATED_COLORS[color_idx]),
             )
         )
-    for col in pred_df.columns:
-        if col.startswith("stock_prediction"):
+        color_idx += 1
+    pred_cols = [c for c in pred_df.columns if c.startswith("stock_prediction")]
+    for idx, col in enumerate(pred_cols):
+        color = ASSOCIATED_COLORS[(idx + color_idx) % len(ASSOCIATED_COLORS)]
+        fig.add_trace(
+            go.Scatter(
+                x=pred_df["date_key"],
+                y=pred_df[col],
+                mode="lines",
+                name=col,
+                line=dict(color=color),
+            )
+        )
+        suffix = col[len("stock_prediction") :]
+        ic_plus = f"ic_stock_plus{suffix}"
+        ic_minus = f"ic_stock_minus{suffix}"
+        if {ic_plus, ic_minus}.issubset(pred_df.columns):
+            r, g, b = hex_to_rgb(color)
             fig.add_trace(
                 go.Scatter(
                     x=pred_df["date_key"],
-                    y=pred_df[col],
+                    y=pred_df[ic_plus],
                     mode="lines",
-                    name=col,
+                    line=dict(width=0),
+                    showlegend=False,
+                    hoverinfo="skip",
+                )
+            )
+            fig.add_trace(
+                go.Scatter(
+                    x=pred_df["date_key"],
+                    y=pred_df[ic_minus],
+                    mode="lines",
+                    line=dict(width=0),
+                    fill="tonexty",
+                    fillcolor=f"rgba({r},{g},{b},0.2)",
+                    name=f"IC {col}",
                 )
             )
     fig.update_layout(
         title="Historique vs prédictions",
-        colorway=ASSOCIATED_COLORS,
         xaxis_title="Date",
         yaxis_title="Volume",
     )
