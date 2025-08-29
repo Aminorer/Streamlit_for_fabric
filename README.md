@@ -33,6 +33,11 @@ Elle permet de filtrer par marque, saison, dimension et période, puis :
 - calcule la précision hebdomadaire (1 − MAPE) et affiche son évolution ;
 - exporte les données combinées au format CSV.
 
+Les légendes du graphique utilisent des icônes ("📈" pour l'historique,
+"🔮" pour les prédictions) afin de faciliter la lecture. Elles peuvent être
+désactivées en passant ``use_emoji=False`` à
+``plot_historical_vs_multi_predictions`` ou via la case à cocher de l'interface.
+
 Les tables de prédiction suivent un motif `pred_<plateforme>_<activité>_<YYYYMMDD>` :
 la date correspond au mardi de génération de la semaine, les prévisions étant recalculées chaque mardi.
 Les visualisations exploitent la palette de couleurs Wyz (`ASSOCIATED_COLORS`) définie dans `constants.py` pour assurer une identité visuelle homogène.
