@@ -20,6 +20,56 @@ logger = logging.getLogger(__name__)
 
 _TABLE_NAME_RE = re.compile(r"^[A-Za-z0-9_]+$")
 
+# Mapping from user provided activity type labels to the suffix used in
+# database table names. Keys are stored in lowercase so lookups can be
+# performed case-insensitively.
+_ACTIVITY_SUFFIX_MAP = {
+    "man": "man",
+    "manufacturing": "man",
+    "manufacturier": "man",
+    "dis": "dis",
+    "distribution": "dis",
+    "distributeur": "dis",
+    "mixte": "mixte",
+    "mix": "mixte",
+    "mixed": "mixte",
+}
+
+
+def get_activity_suffix(activity_type: str) -> str:
+    """Return the suffix used in table names for ``activity_type``.
+
+    Parameters
+    ----------
+    activity_type : str
+        Descriptor of the activity. The value is case-insensitive and may be
+        one of the following (with their aliases):
+
+        ``"man"``, ``"manufacturing"``, ``"manufacturier"`` -> ``"man"``
+        ``"dis"``, ``"distribution"``, ``"distributeur"`` -> ``"dis"``
+        ``"mixte"``, ``"mix"``, ``"mixed"`` -> ``"mixte"``
+
+    Returns
+    -------
+    str
+        The canonical suffix (``"man"``, ``"dis"`` or ``"mixte"``) used in
+        table names.
+
+    Raises
+    ------
+    ValueError
+        If ``activity_type`` is not recognised.
+    """
+
+    key = activity_type.strip().lower()
+    try:
+        return _ACTIVITY_SUFFIX_MAP[key]
+    except KeyError as exc:
+        valid = ", ".join(sorted(set(_ACTIVITY_SUFFIX_MAP)))
+        raise ValueError(
+            f"Unknown activity type '{activity_type}'. Expected one of: {valid}"
+        ) from exc
+
 
 def validate_table_name(table: str, engine: Optional[Engine] = None) -> None:
     """Validate a table name and optionally ensure it exists.
