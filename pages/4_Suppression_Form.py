@@ -22,17 +22,15 @@ def main() -> None:
                     "Société SAINT-GOBAIN",
                     "SAINT-GOBAIN",
                 ],
+                "Supprimer": [False, False, False],
+                "Modifier": [False, False, False],
+                "Fusionner": [False, False, False],
             }
         )
 
-    df_display = st.session_state.data.copy()
-    df_display["Supprimer"] = False
-    df_display["Modifier"] = False
-    df_display["Fusionner"] = False
-
     with st.form("edit_form"):
         edited_df = st.data_editor(
-            df_display,
+            st.session_state.data,
             column_config={
                 "Supprimer": st.column_config.CheckboxColumn("Supprimer"),
                 "Modifier": st.column_config.CheckboxColumn("Modifier"),
@@ -43,7 +41,8 @@ def main() -> None:
         submit = st.form_submit_button("Valider les sélections")
 
     if submit:
-        rows_to_drop = edited_df.index[edited_df["Supprimer"]]
+        st.session_state.data = edited_df
+        rows_to_drop = st.session_state.data.index[st.session_state.data["Supprimer"]]
         if not rows_to_drop.empty:
             st.session_state.data.drop(rows_to_drop, inplace=True)
         st.experimental_rerun()
