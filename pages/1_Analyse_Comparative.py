@@ -122,8 +122,18 @@ def plot_accuracy_evolution(acc_df: pd.DataFrame) -> None:
     if acc_df.empty:
         st.info("Aucune donnée de précision disponible.")
         return
+    # ``week`` can contain localized labels (e.g. ``"01/01/2024 - Semaine 1"``).
+    # Convert them back to ``datetime`` for proper chronological sorting,
+    # then plot using the original labels to preserve the display format.
+    df = acc_df.copy()
+    df["_week_dt"] = pd.to_datetime(
+        df["week"].astype(str).str.split(" - ").str[0],
+        errors="coerce",
+        dayfirst=True,
+    )
+    df = df.sort_values("_week_dt")
     fig = px.line(
-        acc_df,
+        df,
         x="week",
         y="accuracy",
         markers=True,
