@@ -1,5 +1,5 @@
 import re
-from typing import Dict, List
+from typing import Any, Dict, List
 
 import streamlit as st
 
@@ -38,6 +38,37 @@ def search_entities(text: str, pattern: str, context_window: int = 40) -> Dict[s
     return results
 
 
+def add_entity(
+    token: str,
+    anonymisation: str,
+    info: Dict[str, Any],
+    store: List[Dict[str, Any]],
+) -> None:
+    """Validate ``anonymisation`` and add an entity to ``store``.
+
+    Parameters
+    ----------
+    token: str
+        The matched token to anonymise.
+    anonymisation: str
+        The anonymisation value provided by the user.
+    info: dict
+        Information about the token returned by :func:`search_entities`.
+    store: list
+        List where the entity should be stored.
+    """
+    value = anonymisation.strip()
+    if not value:
+        raise ValueError("anonymisation value is required")
+    entity = {
+        "token": token,
+        "valeur_anonymisation": value,
+        "nb_occurrences": info["nb_occurrences"],
+        "contextes": info["contextes"],
+    }
+    store.append(entity)
+
+
 def main() -> None:
     st.set_page_config(page_title="Recherche avancée")
     st.title("Recherche avancée")
@@ -54,8 +85,30 @@ def main() -> None:
         results = search_entities(text, pattern)
         if not results:
             st.info("Aucune occurrence trouvée.")
+        if "entities" not in st.session_state:
+            st.session_state.entities = []
         for token, info in results.items():
             st.subheader(f"{token} — {info['nb_occurrences']} occurrence(s)")
+            col1, col2 = st.columns([3, 1])
+            with col1:
+                anonymisation = st.text_input(
+                    "Valeur d’anonymisation",
+                    key=f"anon_{token}",
+                )
+            with col2:
+                disabled = not anonymisation.strip()
+                if st.button(
+                    "Créer entité",
+                    key=f"create_{token}",
+                    disabled=disabled,
+                ):
+                    add_entity(
+                        token,
+                        anonymisation,
+                        info,
+                        st.session_state.entities,
+                    )
+                    st.success("Entité ajoutée")
             with st.expander("Voir les contextes"):
                 for idx, ctx in enumerate(info["contextes"], start=1):
                     st.write(f"{idx}. …{ctx}…")
