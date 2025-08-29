@@ -18,35 +18,43 @@ from ui_utils import (
 
 
 def plot_historical_vs_multi_predictions(
-    hist_df: pd.DataFrame, pred_df: pd.DataFrame
+    hist_df: pd.DataFrame, pred_df: pd.DataFrame, use_emoji: bool = True
 ) -> None:
-    """Plot historical quantities against available prediction series."""
+    """Plot historical quantities against available prediction series.
+
+    Icons are added to trace names for clarity; set ``use_emoji`` to ``False``
+    to disable them.
+    """
     fig = go.Figure()
     color_idx = 0
+    hist_name = "📈 Historique" if use_emoji else "Historique"
     if {"date_key", "Sum_stock_quantity"}.issubset(hist_df.columns):
         fig.add_trace(
             go.Scatter(
                 x=hist_df["date_key"],
                 y=hist_df["Sum_stock_quantity"],
                 mode="lines",
-                name="Historique",
+                name=hist_name,
                 line=dict(color=ASSOCIATED_COLORS[color_idx]),
             )
         )
         color_idx += 1
     pred_cols = [c for c in pred_df.columns if c.startswith("stock_prediction")]
+    pred_template = "🔮 Prédiction{}" if use_emoji else "Prédiction{}"
+    ic_template = "🎯 IC Prédiction{}" if use_emoji else "IC Prédiction{}"
     for idx, col in enumerate(pred_cols):
         color = ASSOCIATED_COLORS[(idx + color_idx) % len(ASSOCIATED_COLORS)]
+        suffix = col[len("stock_prediction") :]
+        suffix_label = suffix.replace("_", " ")
         fig.add_trace(
             go.Scatter(
                 x=pred_df["date_key"],
                 y=pred_df[col],
                 mode="lines",
-                name=col,
+                name=pred_template.format(suffix_label),
                 line=dict(color=color),
             )
         )
-        suffix = col[len("stock_prediction") :]
         ic_plus = f"ic_stock_plus{suffix}"
         ic_minus = f"ic_stock_minus{suffix}"
         if {ic_plus, ic_minus}.issubset(pred_df.columns):
@@ -69,7 +77,7 @@ def plot_historical_vs_multi_predictions(
                     line=dict(width=0),
                     fill="tonexty",
                     fillcolor=f"rgba({r},{g},{b},0.2)",
-                    name=f"IC {col}",
+                    name=ic_template.format(suffix_label),
                 )
             )
     fig.update_layout(
@@ -220,7 +228,8 @@ def main() -> None:
         st.warning("Aucune donnée disponible.")
         return
 
-    plot_historical_vs_multi_predictions(df_hist, df_pred)
+    use_emoji = st.checkbox("Afficher des icônes dans la légende", value=True)
+    plot_historical_vs_multi_predictions(df_hist, df_pred, use_emoji=use_emoji)
     acc_df = analyze_prediction_accuracy_by_week(df_hist, df_pred)
     plot_accuracy_evolution(acc_df)
 
