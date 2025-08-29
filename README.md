@@ -78,6 +78,14 @@ charge ; vous devez définir explicitement les quatre variables ci-dessus.
 
 Les tables historiques suivent le motif `fullsize_stock_hist_%` et les tables de prédiction le motif `pred_%`. Les suffixes doivent correspondre pour former une paire cohérente, par exemple : `fullsize_stock_hist_amz_man` et `pred_amz_man`.
 
+Les types d'activité valides sont :
+
+- `man` – activités manufacturières ;
+- `dis` – activités de distribution ;
+- `mixte` – activités mixtes combinant les deux.
+
+Ces valeurs forment la partie « activité » des noms de table.
+
 ### Création et alimentation des tables de test
 
 Pour le développement ou les tests locaux, créez une paire de tables historique/prédiction respectant les conventions ci-dessus. Exemple minimal :
