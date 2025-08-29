@@ -45,7 +45,7 @@ def main() -> None:
         rows_to_drop = st.session_state.data.index[st.session_state.data["Supprimer"]]
         if not rows_to_drop.empty:
             st.session_state.data.drop(rows_to_drop, inplace=True)
-        st.experimental_rerun()
+        st.rerun()
 
 
 if __name__ == "__main__":
