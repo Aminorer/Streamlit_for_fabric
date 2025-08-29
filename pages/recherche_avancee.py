@@ -1,6 +1,7 @@
 import re
 from typing import Any, Dict, List
 
+import pandas as pd
 import streamlit as st
 
 
@@ -68,6 +69,34 @@ def add_entity(
     }
     store.append(entity)
 
+    cols = [
+        "Token",
+        "Type",
+        "Occurrences",
+        "Valeurs",
+        "Supprimer",
+        "Modifier",
+        "Fusionner",
+    ]
+    if "data" not in st.session_state:
+        st.session_state.data = pd.DataFrame(columns=cols)
+
+    type_value = value.split("_")[0] if "_" in value else "N/A"
+    new_row = pd.DataFrame(
+        {
+            "Token": [value],
+            "Type": [type_value],
+            "Occurrences": [info["nb_occurrences"]],
+            "Valeurs": [token],
+            "Supprimer": [False],
+            "Modifier": [False],
+            "Fusionner": [False],
+        }
+    )
+    st.session_state.data = pd.concat(
+        [st.session_state.data, new_row], ignore_index=True
+    )
+
 
 def main() -> None:
     st.set_page_config(page_title="Recherche avancée")
@@ -108,7 +137,7 @@ def main() -> None:
                         info,
                         st.session_state.entities,
                     )
-                    st.success("Entité ajoutée")
+                    st.experimental_rerun()
             with st.expander("Voir les contextes"):
                 for idx, ctx in enumerate(info["contextes"], start=1):
                     st.write(f"{idx}. …{ctx}…")
