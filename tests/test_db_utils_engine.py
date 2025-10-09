@@ -44,3 +44,25 @@ def test_build_engine_attempt_sequence(monkeypatch, caplog):
     assert "authentication=ActiveDirectoryIntegrated" in attempts[2]
     assert all("authentication=ActiveDirectoryPassword" not in a for a in attempts)
     assert "SQL connection using ActiveDirectoryIntegrated succeeded" in caplog.text
+
+
+def test_build_engine_aggregates_errors(monkeypatch):
+    def fake_create_engine(conn_str, **kwargs):
+        class DummyEngine:
+            def connect(self):
+                raise SQLAlchemyError("boom")
+
+        return DummyEngine()
+
+    monkeypatch.setattr(db_utils, "create_engine", fake_create_engine)
+    monkeypatch.setenv("SQL_DRIVER", "ODBC Driver 18 for SQL Server")
+    monkeypatch.setenv("SQL_USER", "u")
+    monkeypatch.setenv("SQL_PASSWORD", "p")
+
+    with pytest.raises(SQLAlchemyError) as exc:
+        db_utils._build_engine("srv", "db")
+
+    message = str(exc.value)
+    assert "All SQL connection attempts failed." in message
+    assert "no authentication parameter: boom" in message
+    assert "ActiveDirectoryPassword: boom" in message
