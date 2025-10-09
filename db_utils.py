@@ -103,6 +103,23 @@ def validate_table_name(table: str, engine: Optional[Engine] = None) -> None:
         raise ValueError(f"Table '{table}' does not exist.") from e
 
 
+def _raise_pyodbc_import_error(exc: ImportError) -> None:
+    """Raise a helpful error message when ``pyodbc`` cannot be imported."""
+
+    message = str(exc).lower()
+    if "pyodbc" not in message and "libodbc" not in message:
+        raise exc
+
+    hint = (
+        "Impossible d'importer pyodbc. pyodbc a besoin du gestionnaire de "
+        "pilotes ODBC système. Installez unixODBC (ex. `brew install unixodbc` "
+        "sur macOS) et assurez-vous que le pilote SQL Server est correctement "
+        "configuré. Erreur originale: "
+        f"{exc}"
+    )
+    raise RuntimeError(hint) from exc
+
+
 def _build_engine(server: str, database: str) -> Engine:
     """Create a SQLAlchemy engine for the given server and database.
 
@@ -151,6 +168,8 @@ def _build_engine(server: str, database: str) -> Engine:
                 pass
             logger.info("SQL connection using %s succeeded", label)
             return engine
+        except ImportError as exc:
+            _raise_pyodbc_import_error(exc)
         except SQLAlchemyError:
             logger.exception("SQL connection using %s failed", label)
 
