@@ -159,6 +159,8 @@ def _build_engine(server: str, database: str) -> Engine:
         "max_overflow": 10,
     }
 
+    attempt_errors: List[str] = []
+
     for suffix, label in auth_methods:
         connection_string = base_connection_string + suffix
         logger.info("Attempting SQL connection using %s", label)
@@ -170,10 +172,14 @@ def _build_engine(server: str, database: str) -> Engine:
             return engine
         except ImportError as exc:
             _raise_pyodbc_import_error(exc)
-        except SQLAlchemyError:
+        except SQLAlchemyError as exc:
             logger.exception("SQL connection using %s failed", label)
+            attempt_errors.append(f"{label}: {exc}")
 
-    raise SQLAlchemyError("All SQL connection attempts failed.")
+    detail = "; ".join(attempt_errors)
+    if detail:
+        detail = f" Details: {detail}"
+    raise SQLAlchemyError(f"All SQL connection attempts failed.{detail}")
 
 
 def get_engine_hist() -> Engine:
