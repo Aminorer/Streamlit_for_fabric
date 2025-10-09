@@ -12,6 +12,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.ensemble import RandomForestRegressor
 from dotenv import load_dotenv
 from typing import Any, Callable, Optional, List, Dict, Tuple
+from urllib.parse import quote_plus
 
 load_dotenv("secret.env")
 
@@ -131,14 +132,25 @@ def _build_engine(server: str, database: str) -> Engine:
     password = os.getenv("SQL_PASSWORD")
     driver = os.getenv("SQL_DRIVER")
 
+    if user is None:
+        raise ValueError(
+            "La variable d'environnement SQL_USER est manquante."
+        )
+    if password is None:
+        raise ValueError(
+            "La variable d'environnement SQL_PASSWORD est manquante."
+        )
     if driver is None:
         raise ValueError(
             "La variable d'environnement SQL_DRIVER est manquante."
         )
     driver = driver.replace(" ", "+")
 
+    safe_user = quote_plus(user)
+    safe_password = quote_plus(password)
+
     base_connection_string = (
-        f"mssql+pyodbc://{user}:{password}@{server}:1433/{database}"
+        f"mssql+pyodbc://{safe_user}:{safe_password}@{server}:1433/{database}"
         f"?driver={driver}"
         "&encrypt=yes"
         "&TrustServerCertificate=no"

@@ -66,3 +66,35 @@ def test_build_engine_aggregates_errors(monkeypatch):
     assert "All SQL connection attempts failed." in message
     assert "no authentication parameter: boom" in message
     assert "ActiveDirectoryPassword: boom" in message
+
+
+def test_build_engine_url_encodes_credentials(monkeypatch):
+    captured_conn_strings = []
+
+    def fake_create_engine(conn_str, **kwargs):
+        captured_conn_strings.append(conn_str)
+
+        class DummyEngine:
+            def connect(self):
+                class DummyConn:
+                    def __enter__(self):
+                        return self
+
+                    def __exit__(self, exc_type, exc, tb):
+                        pass
+
+                return DummyConn()
+
+        return DummyEngine()
+
+    monkeypatch.setattr(db_utils, "create_engine", fake_create_engine)
+    monkeypatch.setenv("SQL_DRIVER", "ODBC Driver 18 for SQL Server")
+    monkeypatch.setenv("SQL_USER", "user.name@example.com")
+    monkeypatch.setenv("SQL_PASSWORD", "p@ss word")
+
+    db_utils._build_engine("srv", "db")
+
+    assert captured_conn_strings, "The fake engine should have been created"
+    first_conn_string = captured_conn_strings[0]
+    assert "user.name%40example.com" in first_conn_string
+    assert "p%40ss+word" in first_conn_string
